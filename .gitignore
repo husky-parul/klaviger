@@ -1,0 +1,66 @@
+# Build artifacts
+klaviger-bin
+doc.md
+
+# Kubernetes
+*.kubeconfig
+kubeconfig
+
+
+# Kind
+kind-config.yaml.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets and credentials (never commit)
+.claude/
+.config/
+.cache/
+.env
+.env.*
+**/secrets/
+*.secret
+*.key
+*.pem
+*.p12
+*.pfx
+*.jks
+*.crt
+*.cert
+credentials.json
+token.json
+**/service-account*.json
+
+# Local overrides
+*.local.yaml
+*.local.yml
+
+# Logs
+*.log
+logs/
+
+# Temp and backup files
+*.bak
+*.tmp
+*.swn
+
+# Python
+__pycache__/
+*.pyc
+
+# Data (local SQLite, archives)
+*.db
+*.sqlite
+*.tar.gz
+*.zip
+
+# Node (if any JS tooling added)
+node_modules/

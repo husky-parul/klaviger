@@ -19,10 +19,11 @@ import (
 
 // Proxy is the reverse proxy with authentication
 type Proxy struct {
-	proxy    *httputil.ReverseProxy
-	backend  string
-	verifier auth.Verifier
-	logger   *zap.Logger
+	proxy       *httputil.ReverseProxy
+	backend     string
+	verifier    auth.Verifier
+	logger      *zap.Logger
+	publicPaths []string
 }
 
 // New creates a new reverse proxy
@@ -62,10 +63,11 @@ func New(cfg *config.ReverseProxyConfig, verifier auth.Verifier, logger *zap.Log
 	}
 
 	return &Proxy{
-		proxy:    proxy,
-		backend:  cfg.Backend,
-		verifier: verifier,
-		logger:   logger.With(zap.String("component", "reverse_proxy")),
+		proxy:       proxy,
+		backend:     cfg.Backend,
+		verifier:    verifier,
+		logger:      logger.With(zap.String("component", "reverse_proxy")),
+		publicPaths: cfg.PublicPaths,
 	}, nil
 }
 
@@ -75,6 +77,13 @@ func (p *Proxy) Handler() http.Handler {
 
 	// Health endpoints (no auth required)
 	mux.Handle("/health/", server.HealthHandler())
+
+	// Public paths (no auth required) — configurable via reverseProxy.publicPaths
+	passthrough := proxyPassthrough(p)
+	for _, path := range p.publicPaths {
+		p.logger.Info("registering public path (no auth)", zap.String("path", path))
+		mux.Handle(path, passthrough)
+	}
 
 	// Proxy handler with metrics, authentication, and tracing
 	proxyHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -125,6 +134,13 @@ func (p *Proxy) Handler() http.Handler {
 	mux.Handle("/", authHandler)
 
 	return mux
+}
+
+// proxyPassthrough returns a handler that forwards requests to the backend without authentication.
+func proxyPassthrough(p *Proxy) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		p.proxy.ServeHTTP(w, r)
+	})
 }
 
 // responseWriter wraps http.ResponseWriter to capture status code

@@ -215,19 +215,79 @@ def try_model_registry_write(headers):
         return {"status": 0, "error": str(e), "allowed": False}
 
 
+def get_k8s_oidc_jwks_uri():
+    """Discover the K8s OIDC JWKS URI from the cluster's well-known config."""
+    try:
+        # K8s API server serves OIDC discovery at this well-known path
+        ca_path = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+        import ssl
+        ctx = ssl.create_default_context(cafile=ca_path)
+        req = urllib.request.Request("https://kubernetes.default.svc/.well-known/openid-configuration")
+        sa_token = read_file_safe(SA_TOKEN_PATH)
+        if sa_token:
+            req.add_header("Authorization", f"Bearer {sa_token}")
+        resp = urllib.request.urlopen(req, context=ctx, timeout=5)
+        config = json.loads(resp.read())
+        return config.get("jwks_uri", "")
+    except Exception:
+        return "https://kubernetes.default.svc/openid/v1/jwks"
+
+
+K8S_JWKS_URI = get_k8s_oidc_jwks_uri()
+
+
 def build_agent_card():
-    """Build A2A Agent Card."""
+    """Build A2A Agent Card, signed with the K8s SA projected token.
+
+    The SA token is a JWT signed by the K8s cluster's OIDC signing key.
+    The same token is used for Keycloak federated-jwt auth (token exchange).
+    One key, one identity, one trust chain:
+      - Agent Card identity = SA token sub claim
+      - Agent Card signature = SA token signature (by K8s OIDC key)
+      - Verifier checks signature against K8s OIDC JWKS (same trust root as Keycloak)
+    """
     skills = [s.strip() for s in AGENT_SKILLS.split(",") if s.strip()]
     capabilities = [c.strip() for c in AGENT_CAPABILITIES.split(",") if c.strip()]
-    return {
+
+    # Read the projected SA token (same one used for Keycloak auth)
+    sa_token_path = os.environ.get("SA_AGENT_CARD_TOKEN_PATH", SA_TOKEN_PATH)
+    sa_token = read_file_safe(sa_token_path)
+    sa_claims = decode_jwt_claims(sa_token) if sa_token else None
+
+    identity = ""
+    if sa_claims and "sub" in sa_claims:
+        identity = sa_claims["sub"]
+    elif AGENT_IDENTITY:
+        identity = AGENT_IDENTITY
+
+    card = {
         "name": NAME,
         "description": f"ML Pipeline {NAME} agent",
         "skills": skills,
         "capabilities": capabilities,
-        "identity": AGENT_IDENTITY,
+        "identity": identity,
         "endpoint": f"http://{NAME}",
         "version": "1.0.0",
     }
+
+    if sa_token:
+        return {
+            "card": card,
+            "identity_token": sa_token,
+            "verification": {
+                "jwks_uri": K8S_JWKS_URI,
+                "algorithm": "RS256",
+                "how_to_verify": (
+                    "1. Decode identity_token as JWT. "
+                    "2. Fetch JWKS from jwks_uri (K8s OIDC signing keys). "
+                    "3. Verify signature against JWKS. "
+                    "4. Check identity_token.sub == card.identity. "
+                    "Same trust root used by Keycloak for token exchange."
+                ),
+            },
+        }
+
+    return card
 
 
 class DemoHandler(http.server.BaseHTTPRequestHandler):
@@ -256,6 +316,23 @@ class DemoHandler(http.server.BaseHTTPRequestHandler):
                 self.send_json(200, build_agent_card())
             else:
                 self.send_json(404, {"error": "Agent Card not enabled"})
+            return
+
+        if self.path == "/.well-known/jwks.json":
+            # Proxy the K8s OIDC JWKS — same keys that signed the identity_token
+            try:
+                import ssl
+                ca_path = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+                ctx = ssl.create_default_context(cafile=ca_path)
+                req = urllib.request.Request(K8S_JWKS_URI)
+                sa_token = read_file_safe(SA_TOKEN_PATH)
+                if sa_token:
+                    req.add_header("Authorization", f"Bearer {sa_token}")
+                resp = urllib.request.urlopen(req, context=ctx, timeout=5)
+                jwks = json.loads(resp.read())
+                self.send_json(200, jwks)
+            except Exception as e:
+                self.send_json(502, {"error": f"Could not fetch K8s JWKS: {e}"})
             return
 
         if self.path == "/health":

@@ -4,25 +4,47 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ML Pipeline IAM Demo Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
+    --pytorch-orange: #EE4C2C;
+    --pytorch-dark-orange: #DE3412;
+    --pytorch-light-orange: #F5845C;
     --purple: #8D2E9B;
     --red: #EE3B24;
     --blue: #3532A8;
     --green: #2E7D32;
     --magenta: #CC2FAA;
-    --dark: #181716;
+    --dark: #1A1A2E;
+    --darker: #0F0F1A;
     --light-gray: #f5f5f5;
   }
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
   body {
-    font-family: Arial, Helvetica, sans-serif;
-    background: var(--dark);
+    font-family: 'IBM Plex Mono', 'Fira Code', 'Consolas', monospace;
+    background: var(--darker);
     color: white;
     min-height: 100vh;
+    position: relative;
+    overflow-x: hidden;
   }
+
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background:
+      radial-gradient(ellipse 80% 60% at 10% 20%, rgba(238,76,44,0.08) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 50% at 90% 80%, rgba(53,50,168,0.08) 0%, transparent 60%),
+      radial-gradient(ellipse 40% 40% at 50% 50%, rgba(141,46,155,0.05) 0%, transparent 60%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  body > * { position: relative; z-index: 1; }
 
   .header {
     background: linear-gradient(135deg, var(--purple), var(--blue));
@@ -30,8 +52,10 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    border-bottom: 3px solid rgba(0,0,0,0.2);
+    box-shadow: 0 4px 20px rgba(141,46,155,0.3);
   }
-  .header h1 { font-size: 1.4em; }
+  .header h1 { font-size: 1.4em; letter-spacing: -0.02em; }
   .header .mode-toggle {
     display: flex;
     gap: 8px;
@@ -48,18 +72,21 @@
     transition: all 0.3s;
   }
   .header .mode-btn.active {
-    background: white;
-    color: var(--purple);
+    background: rgba(0,0,0,0.3);
+    color: white;
+    border-color: white;
   }
   .header .mode-btn.classic.active {
-    background: var(--red);
+    background: rgba(0,0,0,0.4);
     color: white;
-    border-color: var(--red);
+    border-color: white;
+    box-shadow: 0 0 12px rgba(255,255,255,0.2);
   }
   .header .mode-btn.agentic.active {
-    background: var(--green);
+    background: rgba(0,0,0,0.4);
     color: white;
-    border-color: var(--green);
+    border-color: white;
+    box-shadow: 0 0 12px rgba(255,255,255,0.2);
   }
 
   .main {
@@ -76,14 +103,15 @@
     flex-wrap: nowrap;
   }
   .agent-node {
-    background: #2a2a3e;
-    border: 2px solid #444;
+    background: rgba(50,50,80,0.7);
+    border: 2px solid #555;
     border-radius: 12px;
     padding: 16px;
     min-width: 160px;
     text-align: center;
     transition: all 0.4s;
     cursor: pointer;
+    backdrop-filter: blur(8px);
   }
   .agent-node .name {
     font-weight: bold;
@@ -139,6 +167,7 @@
   .run-btn.agentic {
     background: linear-gradient(135deg, var(--green), #1b5e20);
   }
+  .run-btn:active { transform: scale(0.97); }
   .run-btn:hover { transform: scale(1.05); }
   .run-btn:disabled {
     opacity: 0.5;
@@ -155,15 +184,17 @@
   }
 
   .detail-panel {
-    background: #1e1e2e;
-    border: 1px solid #333;
+    background: rgba(45,45,70,0.85);
+    border: 1px solid #555;
     border-radius: 12px;
     padding: 16px;
     max-height: 400px;
     overflow-y: auto;
+    backdrop-filter: blur(8px);
+    color: #eee;
   }
   .detail-panel h3 {
-    color: var(--purple);
+    color: #81d4fa;
     margin-bottom: 12px;
     font-size: 1em;
   }
@@ -214,8 +245,8 @@
   }
   .identity-table td {
     padding: 8px 12px;
-    border-bottom: 1px solid #333;
-    color: #ddd;
+    border-bottom: 1px solid #555;
+    color: #f0f0f0;
   }
   .identity-table tr:nth-child(even) td {
     background: rgba(255,255,255,0.03);
@@ -230,24 +261,26 @@
 
   /* Token display */
   .token-display {
-    background: #0d0d1a;
+    background: rgba(35,35,55,0.9);
+    border: 1px solid #555;
     border-radius: 8px;
     padding: 12px;
-    font-family: 'Courier New', monospace;
+    font-family: 'IBM Plex Mono', 'Fira Code', 'Courier New', monospace;
     font-size: 0.75em;
     color: #e0e0e0;
     overflow-x: auto;
     margin: 8px 0;
     line-height: 1.5;
   }
-  .token-display .key { color: var(--magenta); }
+  .token-display .key { color: #81d4fa; }
   .token-display .val { color: #81d4fa; }
   .token-display .val-red { color: #ef5350; }
   .token-display .val-green { color: #66bb6a; }
 
   /* Status bar */
   .status-bar {
-    background: #1e1e2e;
+    background: rgba(45,45,70,0.85);
+    border: 1px solid #555;
     border-radius: 8px;
     padding: 12px 20px;
     margin: 16px 0;
@@ -282,7 +315,7 @@
 <body>
 
 <div class="header">
-  <h1>ML Pipeline IAM Demo</h1>
+  <h1>ML Pipeline IAM Demo <span style="font-size:0.6em;opacity:0.8;font-weight:normal">// PyTorch Conference Europe 2026</span></h1>
   <div class="mode-toggle">
     <button class="mode-btn classic active" onclick="setMode('classic')">Classic IAM</button>
     <button class="mode-btn agentic" onclick="setMode('agentic')">Agentic IAM</button>
@@ -340,25 +373,25 @@
     <div class="detail-panel">
       <h3>Break 1: Identity Comparison</h3>
       <div id="identityComparison">
-        <p style="color: #666;">Run the pipeline to see identity comparison</p>
+        <p style="color: white;">Run the pipeline to see identity comparison</p>
       </div>
     </div>
     <div class="detail-panel">
       <h3>Break 2: Model Registry Access</h3>
       <div id="registryAccess">
-        <p style="color: #666;">Run the pipeline to see model registry access test</p>
+        <p style="color: white;">Run the pipeline to see model registry access test</p>
       </div>
     </div>
     <div class="detail-panel">
       <h3>Delegation Chain</h3>
       <div id="delegationChain">
-        <p style="color: #666;">Run the pipeline to see delegation chain</p>
+        <p style="color: white;">Run the pipeline to see delegation chain</p>
       </div>
     </div>
     <div class="detail-panel">
       <h3>Agent Detail</h3>
       <div id="agentDetail">
-        <p style="color: #666;">Click an agent node to see details</p>
+        <p style="color: white;">Click an agent node to see details</p>
       </div>
     </div>
   </div>
@@ -407,10 +440,10 @@ function resetPipeline() {
   }
   document.getElementById('statusDot').className = 'status-dot';
   document.getElementById('statusText').textContent = 'Ready. Click "Run Pipeline".';
-  document.getElementById('identityComparison').innerHTML = '<p style="color: #666;">Run the pipeline to see identity comparison</p>';
-  document.getElementById('registryAccess').innerHTML = '<p style="color: #666;">Run the pipeline to see model registry access test</p>';
-  document.getElementById('delegationChain').innerHTML = '<p style="color: #666;">Run the pipeline to see delegation chain</p>';
-  document.getElementById('agentDetail').innerHTML = '<p style="color: #666;">Click an agent node to see details</p>';
+  document.getElementById('identityComparison').innerHTML = '<p style="color: white;">Run the pipeline to see identity comparison</p>';
+  document.getElementById('registryAccess').innerHTML = '<p style="color: white;">Run the pipeline to see model registry access test</p>';
+  document.getElementById('delegationChain').innerHTML = '<p style="color: white;">Run the pipeline to see delegation chain</p>';
+  document.getElementById('agentDetail').innerHTML = '<p style="color: white;">Click an agent node to see details</p>';
   pipelineResults = {};
   agentResults = {};
 }
@@ -520,7 +553,7 @@ function showIdentityComparison() {
   const agents = Object.keys(agentResults);
 
   if (agents.length === 0) {
-    container.innerHTML = '<p style="color: #666;">No results yet</p>';
+    container.innerHTML = '<p style="color: white;">No results yet</p>';
     return;
   }
 
@@ -573,7 +606,7 @@ function showRegistryAccess() {
           <div style="color: var(--red); font-weight: bold;">STATUS: 200 OK - WRITE ACCEPTED</div>
         </div>`;
     } else {
-      container.innerHTML = '<p style="color: #666;">Waiting for model registry test...</p>';
+      container.innerHTML = '<p style="color: white;">Waiting for model registry test...</p>';
     }
     return;
   }
@@ -655,11 +688,11 @@ function showAgentDetail(name) {
   const info = agentResults[name];
 
   if (!info) {
-    container.innerHTML = `<p style="color: #666;">No data for ${name}. Run the pipeline first.</p>`;
+    container.innerHTML = `<p style="color: white;">No data for ${name}. Run the pipeline first.</p>`;
     return;
   }
 
-  let html = `<h4 style="color: var(--purple); margin-bottom: 8px;">${name}</h4>`;
+  let html = `<h4 style="color: #81d4fa; margin-bottom: 8px;">${name}</h4>`;
 
   html += '<div class="token-display">';
   html += `<div><span class="key">"agent_name"</span>: <span class="val">"${info.agent_name}"</span></div>`;

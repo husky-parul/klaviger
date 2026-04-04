@@ -65,6 +65,7 @@ type SPIFFEConfig struct {
 type ReverseProxyConfig struct {
 	Backend      string             `yaml:"backend"`
 	Verification VerificationConfig `yaml:"verification"`
+	PublicPaths  []string           `yaml:"publicPaths,omitempty"` // Paths that bypass authentication (e.g., /.well-known/, /api/login)
 }
 
 // VerificationConfig holds token verification configuration
