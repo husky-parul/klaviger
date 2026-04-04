@@ -1,0 +1,1470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Why Classic IAM Collapses for Agents</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/white.css">
+<style>
+  :root {
+    --purple: #8D2E9B;
+    --red: #EE3B24;
+    --blue: #3532A8;
+    --magenta: #CC2FAA;
+    --pink-red: #E12353;
+    --dark: #181716;
+    --gray: #666666;
+    --green: #2E7D32;
+  }
+
+  .reveal {
+    font-family: Arial, Helvetica, sans-serif;
+  }
+  .reveal .slides section {
+    overflow-y: auto !important;
+  }
+
+  .reveal h1, .reveal h2, .reveal h3 {
+    font-family: Arial, Helvetica, sans-serif;
+    color: var(--purple);
+    text-transform: none;
+    font-weight: bold;
+  }
+
+  .reveal h1 { font-size: 2.2em; }
+  .reveal h2 { font-size: 1.6em; }
+  .reveal h3 { font-size: 1.2em; }
+
+  /* Title slide */
+  .title-slide {
+    background: url('bg-title.png') center center / cover no-repeat;
+  }
+  .title-slide h1,
+  .title-slide h2,
+  .title-slide p {
+    color: #ffffff !important;
+    text-shadow: 2px 2px 8px rgba(0,0,0,0.5);
+  }
+  .title-slide h1 {
+    font-size: 2em;
+    line-height: 1.2;
+  }
+  .title-slide h2 {
+    font-size: 1em;
+    font-weight: normal;
+  }
+
+  /* Content slides watermark */
+  .content-slide {
+    background: #ffffff url('pytorch-logo-white.png') bottom right / 200px no-repeat;
+    padding-bottom: 40px !important;
+    overflow-y: auto !important;
+  }
+
+  /* Collapsible sections */
+  .collapsible {
+    cursor: pointer;
+    background: rgba(141, 46, 155, 0.08);
+    border: 2px solid var(--purple);
+    border-radius: 12px;
+    padding: 16px 24px;
+    margin: 8px 0;
+    text-align: left;
+    transition: all 0.3s ease;
+    font-size: 0.65em;
+  }
+  .collapsible:hover {
+    background: rgba(141, 46, 155, 0.15);
+  }
+  .collapsible .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-weight: bold;
+    color: var(--purple);
+    font-size: 1.1em;
+  }
+  .collapsible .header .toggle {
+    font-size: 1.4em;
+    transition: transform 0.3s;
+  }
+  .collapsible .body {
+    display: none;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(141, 46, 155, 0.2);
+    color: var(--dark);
+    line-height: 1.6;
+  }
+  .collapsible.open .body {
+    display: block;
+  }
+  .collapsible.open .toggle {
+    transform: rotate(45deg);
+  }
+
+  /* Flow diagram */
+  .flow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    flex-wrap: nowrap;
+    margin: 20px 0;
+  }
+  .flow-node {
+    background: linear-gradient(135deg, var(--purple), var(--blue));
+    color: white;
+    border-radius: 12px;
+    padding: 12px 14px;
+    text-align: center;
+    font-size: 0.5em;
+    font-weight: bold;
+    min-width: 100px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    cursor: pointer;
+    transition: transform 0.2s;
+  }
+  .flow-node:hover {
+    transform: scale(1.05);
+  }
+  .flow-node.principal {
+    background: linear-gradient(135deg, var(--blue), #1a237e);
+  }
+  .flow-node .subtitle {
+    font-size: 0.8em;
+    font-weight: normal;
+    opacity: 0.85;
+    margin-top: 4px;
+  }
+  .flow-arrow {
+    font-size: 1.5em;
+    color: var(--purple);
+    margin: 0 4px;
+  }
+
+  /* Broken flow */
+  .flow-node.broken {
+    background: linear-gradient(135deg, var(--red), #b71c1c);
+  }
+  .flow-node.fixed {
+    background: linear-gradient(135deg, var(--green), #1b5e20);
+  }
+
+  /* Question cards */
+  .question-card {
+    background: rgba(141, 46, 155, 0.06);
+    border-left: 5px solid var(--purple);
+    border-radius: 0 12px 12px 0;
+    padding: 20px 28px;
+    margin: 16px 0;
+    text-align: left;
+    font-size: 0.7em;
+  }
+  .question-card .number {
+    color: var(--purple);
+    font-size: 1.8em;
+    font-weight: bold;
+    margin-right: 12px;
+    float: left;
+  }
+  .question-card .text {
+    color: var(--dark);
+    line-height: 1.5;
+    overflow: hidden;
+  }
+
+  /* Break cards */
+  .break-card {
+    background: rgba(238, 59, 36, 0.06);
+    border-left: 5px solid var(--red);
+    border-radius: 0 12px 12px 0;
+    padding: 16px 24px;
+    margin: 12px 0;
+    text-align: left;
+    font-size: 0.6em;
+  }
+  .break-card .label {
+    color: var(--red);
+    font-weight: bold;
+    font-size: 1.1em;
+    margin-bottom: 4px;
+  }
+
+  /* Fix cards */
+  .fix-card {
+    background: rgba(46, 125, 50, 0.06);
+    border-left: 5px solid var(--green);
+    border-radius: 0 12px 12px 0;
+    padding: 16px 24px;
+    margin: 12px 0;
+    text-align: left;
+    font-size: 0.6em;
+  }
+  .fix-card .label {
+    color: var(--green);
+    font-weight: bold;
+    font-size: 1.1em;
+    margin-bottom: 4px;
+  }
+
+  /* Pillar cards */
+  .pillar {
+    background: white;
+    border: 2px solid var(--purple);
+    border-radius: 16px;
+    padding: 20px;
+    text-align: left;
+    font-size: 0.55em;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+  }
+  .pillar .pillar-number {
+    background: var(--purple);
+    color: white;
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 1.2em;
+    margin-bottom: 8px;
+  }
+  .pillar h3 {
+    margin: 8px 0;
+    font-size: 1.1em;
+  }
+  .pillar ul {
+    margin: 8px 0;
+    padding-left: 20px;
+  }
+  .pillar li {
+    margin: 4px 0;
+    line-height: 1.4;
+  }
+
+  /* Matrix table */
+  .matrix {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 0.5em;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+  }
+  .matrix th {
+    background: var(--purple);
+    color: white;
+    padding: 12px 16px;
+    text-align: left;
+    font-weight: bold;
+  }
+  .matrix td {
+    padding: 10px 16px;
+    border-bottom: 1px solid #eee;
+    text-align: left;
+    vertical-align: top;
+  }
+  .matrix tr:nth-child(even) td {
+    background: rgba(141, 46, 155, 0.04);
+  }
+  .matrix tr.highlight td {
+    background: rgba(141, 46, 155, 0.12);
+    font-weight: bold;
+  }
+  .matrix .agent-tag {
+    background: var(--purple);
+    color: white;
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 0.85em;
+    margin-left: 6px;
+  }
+
+  /* Phase columns */
+  .phases {
+    display: flex;
+    gap: 16px;
+    margin: 20px 0;
+  }
+  .phase {
+    flex: 1;
+    border-radius: 16px;
+    padding: 20px;
+    text-align: left;
+    font-size: 0.5em;
+    cursor: pointer;
+    transition: all 0.3s;
+  }
+  .phase:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  }
+  .phase.p1 {
+    background: rgba(53, 50, 168, 0.08);
+    border: 2px solid var(--blue);
+  }
+  .phase.p2 {
+    background: rgba(141, 46, 155, 0.08);
+    border: 2px solid var(--purple);
+  }
+  .phase.p3 {
+    background: rgba(204, 47, 170, 0.08);
+    border: 2px solid var(--magenta);
+  }
+  .phase .phase-label {
+    font-weight: bold;
+    font-size: 1.3em;
+    margin-bottom: 8px;
+  }
+  .phase .phase-details {
+    display: none;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(0,0,0,0.1);
+    line-height: 1.6;
+  }
+  .phase.open .phase-details {
+    display: block;
+  }
+  .phase .p1 .phase-label { color: var(--blue); }
+  .phase .p2 .phase-label { color: var(--purple); }
+  .phase .p3 .phase-label { color: var(--magenta); }
+
+  /* Demo slide */
+  .demo-banner {
+    background: linear-gradient(135deg, var(--purple), var(--magenta));
+    color: white;
+    border-radius: 16px;
+    padding: 40px;
+    font-size: 1.2em;
+    font-weight: bold;
+    box-shadow: 0 8px 32px rgba(141, 46, 155, 0.3);
+  }
+  .demo-banner .demo-label {
+    font-size: 0.6em;
+    opacity: 0.8;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
+  /* Token visual */
+  .token-visual {
+    background: var(--dark);
+    color: #e0e0e0;
+    border-radius: 12px;
+    padding: 16px 20px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.48em;
+    text-align: left;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+    margin: 12px 0;
+  }
+  .token-visual .key {
+    color: var(--magenta);
+  }
+  .token-visual .value {
+    color: #81d4fa;
+  }
+  .token-visual .value.highlight-red {
+    color: #ef5350;
+  }
+  .token-visual .value.highlight-green {
+    color: #66bb6a;
+  }
+
+  /* Agent card visual */
+  .agent-card-visual {
+    background: white;
+    border: 2px solid var(--purple);
+    border-radius: 12px;
+    padding: 14px 18px;
+    font-size: 0.45em;
+    text-align: left;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  }
+  .agent-card-visual .card-header {
+    font-weight: bold;
+    color: var(--purple);
+    font-size: 1.1em;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .agent-card-visual .badge {
+    background: var(--green);
+    color: white;
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 0.75em;
+    font-weight: normal;
+  }
+
+  /* Scope narrowing visual */
+  .scope-bar {
+    height: 24px;
+    border-radius: 12px;
+    margin: 6px 0;
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    color: white;
+    font-size: 0.45em;
+    font-weight: bold;
+    transition: width 0.5s ease;
+  }
+
+  /* Subtitle text */
+  .subtitle-text {
+    color: var(--gray);
+    font-size: 0.6em;
+    margin-top: -8px;
+  }
+
+  /* CTA */
+  .cta-box {
+    background: linear-gradient(135deg, var(--purple), var(--blue));
+    color: white;
+    border-radius: 16px;
+    padding: 24px 32px;
+    margin: 16px 0;
+    font-size: 0.65em;
+    text-align: left;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+  }
+  .cta-box a {
+    color: #bbdefb;
+  }
+
+  /* Conference footer */
+  .slide-footer {
+    position: absolute;
+    bottom: 4px;
+    left: 40px;
+    font-size: 0.35em;
+    color: var(--gray);
+    opacity: 0.6;
+  }
+
+  /* Comparison columns */
+  .compare {
+    display: flex;
+    gap: 24px;
+    margin: 16px 0;
+  }
+  .compare .col {
+    flex: 1;
+    border-radius: 16px;
+    padding: 20px;
+    font-size: 0.55em;
+    text-align: left;
+  }
+  .compare .col.classic {
+    background: rgba(238, 59, 36, 0.06);
+    border: 2px solid var(--red);
+  }
+  .compare .col.agentic {
+    background: rgba(46, 125, 50, 0.06);
+    border: 2px solid var(--green);
+  }
+  .compare .col h3 {
+    margin-top: 0;
+  }
+  .compare .col.classic h3 { color: var(--red); }
+  .compare .col.agentic h3 { color: var(--green); }
+
+  /* Architecture diagram */
+  .arch-row {
+    display: flex;
+    gap: 12px;
+    margin: 8px 0;
+    align-items: stretch;
+  }
+  .arch-box {
+    flex: 1;
+    border-radius: 12px;
+    padding: 12px;
+    font-size: 0.45em;
+    text-align: center;
+    font-weight: bold;
+  }
+  .arch-box.spire {
+    background: rgba(53, 50, 168, 0.1);
+    border: 2px solid var(--blue);
+    color: var(--blue);
+  }
+  .arch-box.klaviger {
+    background: rgba(141, 46, 155, 0.1);
+    border: 2px solid var(--purple);
+    color: var(--purple);
+  }
+  .arch-box.app {
+    background: rgba(24, 23, 22, 0.06);
+    border: 2px solid var(--dark);
+    color: var(--dark);
+  }
+  .arch-box.keycloak {
+    background: rgba(238, 59, 36, 0.1);
+    border: 2px solid var(--red);
+    color: var(--red);
+  }
+  .arch-label {
+    font-size: 0.4em;
+    color: var(--gray);
+    text-align: center;
+    margin: 4px 0;
+  }
+</style>
+</head>
+<body>
+<div class="reveal">
+<div class="slides">
+
+<!-- ==================== SLIDE 1: TITLE ==================== -->
+<section data-background-image="bg-title.png" data-background-size="cover">
+  <div style="padding-top: 60px;">
+    <h1 style="color: white; font-size: 1.8em; line-height: 1.3;">Why Classic IAM Collapses<br>for Agents</h1>
+    <h2 style="color: white; font-weight: normal; font-size: 0.9em; margin-top: 20px;">Rethinking IAM for Agentic Systems</h2>
+    <p style="color: rgba(255,255,255,0.85); font-size: 0.6em; margin-top: 40px;">
+      <!-- SPEAKER: Add your name and affiliation here -->
+      <br>PyTorch Conference Europe 2026
+    </p>
+  </div>
+</section>
+
+<!-- ==================== SLIDE 2: THE WORLD HAS CHANGED ==================== -->
+<section class="content-slide">
+  <h2>The World Has Changed</h2>
+  <p class="subtitle-text">Agents are not users. Agents are not static services.</p>
+
+  <div style="margin-top: 24px;">
+    <p style="font-size: 0.6em; color: var(--dark); text-align: left; margin-bottom: 16px;">
+      They reason, plan, delegate, and act across tools, services, and organizational boundaries.
+    </p>
+
+    <table class="matrix">
+      <tr>
+        <th>Level</th><th>Label</th><th>Description</th><th>Example</th>
+      </tr>
+      <tr>
+        <td>L0</td><td>No autonomy</td><td>Fixed scripts, cron jobs</td><td>Scheduled ETL job</td>
+      </tr>
+      <tr>
+        <td>L1</td><td>Assisted</td><td>Single-step, human-approved triggers</td><td>Chatbot with canned responses</td>
+      </tr>
+      <tr>
+        <td>L2</td><td>Guided</td><td>Template-based workflows</td><td>Rule-based ticket router</td>
+      </tr>
+      <tr class="highlight">
+        <td>L3</td><td>Semi-autonomous</td><td>Domain-bounded multi-step planners</td><td>Invoice-processing agent</td>
+      </tr>
+      <tr class="highlight">
+        <td>L4</td><td>Highly autonomous</td><td>Goal-driven, adapting to context</td><td>Incident remediation agent</td>
+      </tr>
+      <tr class="highlight">
+        <td>L5</td><td>Fully autonomous</td><td>Open-ended, broad decision authority</td><td>Autonomous trading agent</td>
+      </tr>
+    </table>
+
+    <p style="font-size: 0.5em; color: var(--purple); margin-top: 12px; font-weight: bold;">
+      L3+ agents require full Agentic IAM: ephemeral identities, On-Behalf-Of delegation, ABAC/PBAC, continuous evaluation
+    </p>
+  </div>
+  <div class="slide-footer">PyTorch Conference Europe 2026</div>
+</section>
+
+<!-- ==================== SLIDE 3: THREE QUESTIONS ==================== -->
+<section class="content-slide">
+  <h2>Three Questions</h2>
+  <p class="subtitle-text">Classic IAM has no good answers for these</p>
+
+  <div class="question-card fragment">
+    <div class="number">1</div>
+    <div class="text">
+      <strong>How should agent identity be defined</strong> when tools, workflows, and execution context are dynamic?
+    </div>
+  </div>
+
+  <div class="question-card fragment">
+    <div class="number">2</div>
+    <div class="text">
+      <strong>How do we preserve accountability</strong> when agents act on behalf of users or other agents?
+    </div>
+  </div>
+
+  <div class="question-card fragment">
+    <div class="number">3</div>
+    <div class="text">
+      <strong>How should access change</strong> as agent behavior and risk evolve during execution?
+    </div>
+  </div>
+
+  <div class="slide-footer">PyTorch Conference Europe 2026</div>
+</section>
+
+<!-- ==================== SLIDE 4: OUR SCENARIO ==================== -->
+<section class="content-slide">
+  <h2>Our Scenario: ML Training Pipeline</h2>
+  <p class="subtitle-text">A data scientist triggers a multi-agent model training workflow</p>
+
+  <div class="flow" style="margin-top: 30px;">
+    <div class="flow-node principal">
+      Alice
+      <div class="subtitle">Data Scientist</div>
+    </div>
+    <div class="flow-arrow fragment">&#8594;</div>
+    <div class="flow-node fragment" style="min-width: 140px;">
+      Orchestrator
+      <div class="subtitle" style="opacity:1; font-size:0.75em; margin-top:6px; line-height:1.3;">
+        Plans &amp; delegates<br>the ML workflow
+      </div>
+    </div>
+    <div class="flow-arrow fragment">&#8594;</div>
+    <div class="flow-node fragment" style="min-width: 140px;">
+      Data Agent
+      <div class="subtitle" style="opacity:1; font-size:0.75em; margin-top:6px; line-height:1.3;">
+        Reads features<br>from data store
+      </div>
+    </div>
+    <div class="flow-arrow fragment">&#8594;</div>
+    <div class="flow-node fragment" style="min-width: 140px;">
+      Training Agent
+      <div class="subtitle" style="opacity:1; font-size:0.75em; margin-top:6px; line-height:1.3;">
+        Trains model<br>writes to registry
+      </div>
+    </div>
+    <div class="flow-arrow fragment">&#8594;</div>
+    <div class="flow-node fragment" style="min-width: 140px;">
+      Eval Agent
+      <div class="subtitle" style="opacity:1; font-size:0.75em; margin-top:6px; line-height:1.3;">
+        Runs eval suite<br>writes reports
+      </div>
+    </div>
+    <div class="flow-arrow fragment">&#8594;</div>
+    <div class="flow-node fragment" style="min-width: 140px;">
+      Deploy Agent
+      <div class="subtitle" style="opacity:1; font-size:0.75em; margin-top:6px; line-height:1.3;">
+        Deploys model<br>to staging
+      </div>
+    </div>
+  </div>
+
+  <div class="fragment" style="margin-top: 24px;">
+    <p style="font-size: 0.6em; color: var(--dark); text-align: center;">
+      Let's see what happens when we run this with <strong style="color: var(--red);">classic IAM</strong>
+    </p>
+  </div>
+
+  <div class="slide-footer">PyTorch Conference Europe 2026</div>
+</section>
+
+<!-- ==================== SLIDE 5: LIVE DEMO - CLASSIC BREAKS ==================== -->
+<section class="content-slide">
+  <div class="demo-banner">
+    <div class="demo-label">Live Demo</div>
+    Classic IAM Breaks
+  </div>
+
+  <div style="margin-top: 24px;">
+    <div class="break-card fragment">
+      <div class="label">Break 1: "Who did it?"</div>
+      Every agent shows the same identity: <code>ml-pipeline-sa</code>. Which agent accessed what? Can't tell.
+    </div>
+    <div class="break-card fragment">
+      <div class="label">Break 2: Overprivileged by default</div>
+      <div style="display: flex; gap: 16px; align-items: flex-start; margin-top: 8px;">
+        <div style="flex: 1;">
+          Data agent only needs <code>read:features</code> &mdash; but it can <code>write:model-registry</code>. And it succeeds.
+        </div>
+        <div style="flex: 1.2; background: var(--dark); border-radius: 8px; padding: 10px 14px; font-family: 'Courier New', monospace; font-size: 0.85em; color: #e0e0e0;">
+          <div style="color: #888; margin-bottom: 6px;">Shared SA: <span style="color: #ef5350;">ml-pipeline-sa</span></div>
+          <div style="display:flex; gap:8px; margin-bottom: 4px;">
+            <span style="background:#3532A8; color:white; border-radius:4px; padding:2px 8px; min-width:110px; text-align:center;">Orchestrator</span>
+            <span style="color:#888;">&#8594; all scopes</span>
+            <span style="color:#66bb6a;">&#10004; needs all scopes</span>
+          </div>
+          <div style="display:flex; gap:8px; margin-bottom: 4px;">
+            <span style="background:#ef5350; color:white; border-radius:4px; padding:2px 8px; min-width:110px; text-align:center;">Data Agent</span>
+            <span style="color:#888;">&#8594; all scopes</span>
+            <span style="color:#ef5350;">&#10008; needs only <code style="color:#ef5350;">read:features</code></span>
+          </div>
+          <div style="display:flex; gap:8px; margin-bottom: 4px;">
+            <span style="background:#ef5350; color:white; border-radius:4px; padding:2px 8px; min-width:110px; text-align:center;">Training Agent</span>
+            <span style="color:#888;">&#8594; all scopes</span>
+            <span style="color:#ef5350;">&#10008; needs only <code style="color:#ef5350;">write:model-registry provision:gpu</code></span>
+          </div>
+          <div style="display:flex; gap:8px; margin-bottom: 4px;">
+            <span style="background:#ef5350; color:white; border-radius:4px; padding:2px 8px; min-width:110px; text-align:center;">Eval Agent</span>
+            <span style="color:#888;">&#8594; all scopes</span>
+            <span style="color:#ef5350;">&#10008; needs only <code style="color:#ef5350;">read:test-data write:eval-reports</code></span>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <span style="background:#ef5350; color:white; border-radius:4px; padding:2px 8px; min-width:110px; text-align:center;">Deploy Agent</span>
+            <span style="color:#888;">&#8594; all scopes</span>
+            <span style="color:#ef5350;">&#10008; needs only <code style="color:#ef5350;">deploy:staging</code></span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="break-card fragment">
+      <div class="label">Break 3: No delegation chain</div>
+      Was this training job initiated by the data scientist, or did the agent act on its own? No way to know.
+    </div>
+  </div>
+
+  <div class="slide-footer">PyTorch Conference Europe 2026</div>
+</section>
+
+<!-- ==================== SLIDE 6: WHY DID IT BREAK ==================== -->
+<section class="content-slide">
+  <h2>Why Did It Break?</h2>
+  <p class="subtitle-text">Three assumptions that don't hold for agents</p>
+
+  <div class="compare">
+    <div class="col classic">
+      <h3>Classic IAM Assumes</h3>
+      <ul style="line-height: 1.8;">
+        <li><strong>Long-lived identities</strong><br>Static service accounts, shared across agents</li>
+        <li><strong>Static permissions</strong><br>Same RBAC role regardless of context or caller</li>
+        <li><strong>Check-once, trust-always</strong><br>Authenticate at the gate, no re-evaluation</li>
+      </ul>
+    </div>
+    <div class="col agentic fragment">
+      <h3>Agents Need</h3>
+      <ul style="line-height: 1.8;">
+        <li><strong>Ephemeral, per-agent identity</strong><br>Unique, cryptographically attested per workload</li>
+        <li><strong>Context-aware, scoped permissions</strong><br>Narrowing at each delegation hop</li>
+        <li><strong>Continuous evaluation</strong><br>Re-assess trust based on behavior and risk</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="slide-footer">PyTorch Conference Europe 2026</div>
+</section>
+
+<!-- ==================== SLIDE 7: PILLAR 1 - WHAT IS SPIFFE ==================== -->
+<section class="content-slide">
+  <h2>Pillar 1: Agent Identity</h2>
+  <p class="subtitle-text">Every agent needs a unique, verifiable identity &mdash; not a shared service account</p>
+
+  <div style="display: flex; gap: 24px; margin-top: 16px;">
+    <div style="flex: 1;">
+      <div class="collapsible" onclick="toggleCollapsible(this)">
+        <div class="header">
+          <span>What is SPIFFE?</span>
+          <span class="toggle">+</span>
+        </div>
+        <div class="body">
+          <strong>Secure Production Identity Framework for Everyone</strong><br><br>
+          <ul>
+            <li>Defines a standard identity format: <strong>SPIFFE ID</strong> &mdash; a URI like <code>spiffe://trust-domain/workload-path</code></li>
+            <li>Issues short-lived <strong>SVIDs</strong> (X.509 certs or JWTs) &mdash; no static secrets to rotate</li>
+            <li>Identity is <strong>attested</strong>, not configured &mdash; platform cryptographically proves the workload's identity, so no one can self-assign or forge credentials</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="collapsible" onclick="toggleCollapsible(this)">
+        <div class="header">
+          <span>How We Use It</span>
+          <span class="toggle">+</span>
+        </div>
+        <div class="body">
+          <strong>SPIRE</strong> (the SPIFFE runtime) runs in our K8s cluster and:<br><br>
+          <ul>
+            <li><strong>Attests</strong> each agent pod automatically via the K8s workload attestor</li>
+            <li><strong>Issues</strong> a unique SVID per agent: <code>spiffe://cluster.local/ns/agentic-ml/sa/data-agent</code></li>
+            <li><strong>Rotates</strong> credentials every ~60 minutes &mdash; no manual key management</li>
+            <li><strong>Sidecar Proxy sidecar</strong> uses the SVID for mTLS between agents and to authenticate to Keycloak</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="collapsible" onclick="toggleCollapsible(this)">
+        <div class="header">
+          <span>Agent Registration & Discovery</span>
+          <span class="toggle">+</span>
+        </div>
+        <div class="body">
+          Every agent must be <strong>registered</strong> before it can participate:<br><br>
+          <ul>
+            <li><strong>SPIRE registration entry</strong> &mdash; maps K8s service account to SPIFFE ID</li>
+            <li><strong>Keycloak client</strong> &mdash; registered with <code>federated-jwt</code> auth, bound to SPIFFE/K8s identity</li>
+            <li><strong>Agent Card</strong> at <code>/.well-known/agent.json</code> &mdash; declares capabilities, signed with SPIRE key</li>
+            <li>Unregistered agents <strong>cannot</strong> obtain tokens or participate in delegation chains</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div style="flex: 1;">
+      <div style="font-size: 0.5em; margin-bottom: 12px;">
+        <div style="font-weight:bold; color:var(--purple); margin-bottom: 8px;">Classic: Shared Identity</div>
+        <div style="background:rgba(238,59,36,0.06); border:2px solid var(--red); border-radius:8px; padding:10px 14px; text-align:center;">
+          <div style="display:flex; gap:6px; justify-content:center; flex-wrap:wrap;">
+            <span style="background:var(--red);color:white;border-radius:4px;padding:3px 10px;">Orchestrator</span>
+            <span style="background:var(--red);color:white;border-radius:4px;padding:3px 10px;">Data Agent</span>
+            <span style="background:var(--red);color:white;border-radius:4px;padding:3px 10px;">Training Agent</span>
+            <span style="background:var(--red);color:white;border-radius:4px;padding:3px 10px;">Eval Agent</span>
+            <span style="background:var(--red);color:white;border-radius:4px;padding:3px 10px;">Deploy Agent</span>
+          </div>
+          <div style="margin-top:8px; font-size:0.9em; color:var(--red);">All use: <code>ml-pipeline-sa</code></div>
+        </div>
+      </div>
+
+      <div style="font-size: 0.5em; text-align:center; color:var(--gray); margin: 6px 0;">&#8595; vs &#8595;</div>
+
+      <div style="font-size: 0.5em;">
+        <div style="font-weight:bold; color:var(--green); margin-bottom: 8px;">Agentic: Unique Identity per Agent</div>
+        <div style="background:rgba(46,125,50,0.06); border:2px solid var(--green); border-radius:8px; padding:10px 14px;">
+          <div style="margin: 3px 0; display:flex; align-items:center; gap:8px;">
+            <span style="background:var(--green);color:white;border-radius:4px;padding:3px 10px;min-width:110px;text-align:center;">Orchestrator</span>
+            <code style="color:var(--green); font-size:0.85em;">spiffe://cluster/ns/agentic-ml/sa/orchestrator</code>
+          </div>
+          <div style="margin: 3px 0; display:flex; align-items:center; gap:8px;">
+            <span style="background:var(--green);color:white;border-radius:4px;padding:3px 10px;min-width:110px;text-align:center;">Data Agent</span>
+            <code style="color:var(--green); font-size:0.85em;">spiffe://cluster/ns/agentic-ml/sa/data-agent</code>
+          </div>
+          <div style="margin: 3px 0; display:flex; align-items:center; gap:8px;">
+            <span style="background:var(--green);color:white;border-radius:4px;padding:3px 10px;min-width:110px;text-align:center;">Training Agent</span>
+            <code style="color:var(--green); font-size:0.85em;">spiffe://cluster/ns/agentic-ml/sa/training-agent</code>
+          </div>
+          <div style="margin: 3px 0; display:flex; align-items:center; gap:8px;">
+            <span style="background:var(--green);color:white;border-radius:4px;padding:3px 10px;min-width:110px;text-align:center;">Eval Agent</span>
+            <code style="color:var(--green); font-size:0.85em;">spiffe://cluster/ns/agentic-ml/sa/eval-agent</code>
+          </div>
+          <div style="margin: 3px 0; display:flex; align-items:center; gap:8px;">
+            <span style="background:var(--green);color:white;border-radius:4px;padding:3px 10px;min-width:110px;text-align:center;">Deploy Agent</span>
+            <code style="color:var(--green); font-size:0.85em;">spiffe://cluster/ns/agentic-ml/sa/deploy-agent</code>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="slide-footer">PyTorch Conference Europe 2026</div>
+</section>
+
+<!-- ==================== SLIDE 7b: PILLAR 1 - DELEGATION ==================== -->
+<section class="content-slide">
+  <h2>Pillar 1: Delegated Authorization</h2>
+  <p class="subtitle-text">How token exchange and scope narrowing work at each hop</p>
+
+  <div style="display: flex; gap: 20px; margin-top: 16px;">
+    <div style="flex: 1;">
+      <div class="collapsible" onclick="toggleCollapsible(this)">
+        <div class="header">
+          <span>Token Exchange (RFC 8693)</span>
+          <span class="toggle">+</span>
+        </div>
+        <div class="body">
+          At each hop, <strong>Sidecar Proxy</strong> (sidecar proxy) transparently exchanges tokens:<br><br>
+          <ol style="padding-left:16px; line-height:1.8;">
+            <li>Orchestrator receives Alice's token (<code>sub: alice</code>, all scopes)</li>
+            <li>Sidecar Proxy intercepts the call to data-agent</li>
+            <li>Sends token exchange to <strong>Keycloak</strong> with Alice's token as <code>subject_token</code> and its own K8s SA token as <code>actor_token</code></li>
+            <li>Requests only <code>scope=read:features</code></li>
+            <li>Keycloak returns a new token: <code>sub=alice</code>, <code>act.sub=orchestrator</code>, <code>scope=read:features</code></li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="collapsible" onclick="toggleCollapsible(this)">
+        <div class="header">
+          <span>Scope Narrowing (Custom Keycloak SPI)</span>
+          <span class="toggle">+</span>
+        </div>
+        <div class="body">
+          Keycloak ignores the <code>scope</code> parameter in token exchange by default (bugs #29614, #30704). We built a <strong>custom SPI</strong> that:<br><br>
+          <ul>
+            <li><strong>Intersects</strong> requested scopes with available scopes &mdash; can only narrow, never expand</li>
+            <li><strong>Injects <code>act</code> claims</strong> (RFC 8693 &sect;4.1) to track who is acting on behalf of whom</li>
+            <li><strong>Chains</strong> delegation &mdash; if agent A delegates to agent B, the act claim nests</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="collapsible" onclick="toggleCollapsible(this)">
+        <div class="header">
+          <span>Zero Code Changes to Agents</span>
+          <span class="toggle">+</span>
+        </div>
+        <div class="body">
+          Agents are <strong>unaware</strong> of the token exchange. Sidecar Proxy runs as a sidecar proxy &mdash; it intercepts HTTP calls, exchanges tokens, and forwards the narrowed token. The agent code is identical in classic and agentic mode.
+        </div>
+      </div>
+    </div>
+
+    <div style="flex: 1;">
+      <div class="token-visual">
+        <div style="color:#888; margin-bottom:6px;">// Alice's original token (orchestrator)</div>
+        <div>{</div>
+        <div>&nbsp;&nbsp;<span class="key">"sub"</span>: <span class="value">"alice"</span>,</div>
+        <div>&nbsp;&nbsp;<span class="key">"scope"</span>: <span class="value">"read:features write:model-registry provision:gpu ..."</span></div>
+        <div>}</div>
+      </div>
+      <div style="text-align:center; color:var(--purple); font-size:0.6em; margin:6px 0;">&#8595; Sidecar Proxy exchanges for data-agent &#8595;</div>
+      <div class="token-visual">
+        <div style="color:#888; margin-bottom:6px;">// Narrowed token (data-agent receives)</div>
+        <div>{</div>
+        <div>&nbsp;&nbsp;<span class="key">"sub"</span>: <span class="value">"alice"</span>,</div>
+        <div>&nbsp;&nbsp;<span class="key">"act"</span>: {</div>
+        <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="key">"sub"</span>: <span class="value highlight-green">"system:serviceaccount:agentic-ml:orchestrator"</span></div>
+        <div>&nbsp;&nbsp;},</div>
+        <div>&nbsp;&nbsp;<span class="key">"scope"</span>: <span class="value highlight-green">"read:features"</span>,</div>
+        <div>&nbsp;&nbsp;<span class="key">"aud"</span>: <span class="value">"data-agent"</span></div>
+        <div>}</div>
+      </div>
+      <p style="font-size: 0.4em; color: var(--gray); text-align: center; margin-top: 8px;">
+        Alice's identity preserved &bull; Orchestrator recorded as actor &bull; Scope narrowed to minimum
+      </p>
+    </div>
+  </div>
+
+  <div class="slide-footer">PyTorch Conference Europe 2026</div>
+</section>
+
+<!-- ==================== SLIDE 8: PILLAR 2 ==================== -->
+<section class="content-slide">
+  <h2>Pillar 2: Discoverability</h2>
+  <p class="subtitle-text">Agent Cards: the digital business card for agents (A2A)</p>
+
+  <div style="display: flex; gap: 24px; margin-top: 20px;">
+    <div style="flex: 1;">
+      <div class="collapsible" onclick="toggleCollapsible(this)">
+        <div class="header">
+          <span>The Business Card Problem</span>
+          <span class="toggle">+</span>
+        </div>
+        <div class="body">
+          Anyone can print a business card claiming to be a doctor. Similarly, any workload can publish an Agent Card claiming "I am the Training Agent." Without identity binding, discovery is an attack surface.
+        </div>
+      </div>
+
+      <div class="collapsible" onclick="toggleCollapsible(this)">
+        <div class="header">
+          <span>Three-Step Defense</span>
+          <span class="toggle">+</span>
+        </div>
+        <div class="body">
+          <strong>1. Bind</strong> &mdash; Agent Card tied to SPIFFE workload identity<br>
+          <strong>2. Sign</strong> &mdash; JWS signature with SPIRE-issued key (tamper-evident)<br>
+          <strong>3. Enforce</strong> &mdash; Runtime caller authorization via mTLS
+        </div>
+      </div>
+
+      <div class="collapsible" onclick="toggleCollapsible(this)">
+        <div class="header">
+          <span>Why It Matters</span>
+          <span class="toggle">+</span>
+        </div>
+        <div class="body">
+          Agents discover each other <em>by capability</em>, not by fixed DNS name.<br>
+          "Find me an agent that can evaluate model safety" &mdash; and verify it is who it claims to be.
+        </div>
+      </div>
+    </div>
+
+    <div style="flex: 1;">
+      <div class="agent-card-visual">
+        <div class="card-header">
+          /.well-known/agent.json <span class="badge">SIGNED</span>
+        </div>
+        <div class="token-visual" style="margin: 8px 0; font-size: 0.9em;">
+          <div>{</div>
+          <div>&nbsp;&nbsp;<span class="key">"name"</span>: <span class="value">"training-agent"</span>,</div>
+          <div>&nbsp;&nbsp;<span class="key">"skills"</span>: [<span class="value">"model-training"</span>, <span class="value">"gpu-provisioning"</span>],</div>
+          <div>&nbsp;&nbsp;<span class="key">"capabilities"</span>: [<span class="value">"write:model-registry"</span>],</div>
+          <div>&nbsp;&nbsp;<span class="key">"identity"</span>: <span class="value highlight-green">"spiffe://cluster/ns/ml/sa/training-agent"</span>,</div>
+          <div>&nbsp;&nbsp;<span class="key">"signatures"</span>: [{</div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="key">"protected"</span>: <span class="value">"eyJhbGciOiJSUzI1NiIs..."</span>,</div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="key">"signature"</span>: <span class="value">"kWJb9Hx4..."</span></div>
+          <div>&nbsp;&nbsp;}]</div>
+          <div>}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="slide-footer">PyTorch Conference Europe 2026</div>
+</section>
+
+<!-- ==================== SLIDE 9: PILLAR 3 ==================== -->
+<section class="content-slide">
+  <h2>Pillar 3: Observability & Tracing</h2>
+  <p class="subtitle-text">If you can't see the delegation chain, you can't trust it</p>
+
+  <div style="display: flex; gap: 24px; margin-top: 16px;">
+    <div style="flex: 1;">
+      <div class="collapsible" onclick="toggleCollapsible(this)">
+        <div class="header">
+          <span>OTel Spans at Every Hop</span>
+          <span class="toggle">+</span>
+        </div>
+        <div class="body">
+          Each Sidecar Proxy sidecar emits OpenTelemetry spans tagged with:<br>
+          <code>trust.principal_id</code>, <code>trust.caller_id</code>, <code>trust.hop_kind</code>, <code>trust.scopes</code>
+          <br><br>Full delegation DAG reconstructable from spans.
+        </div>
+      </div>
+
+      <div class="collapsible" onclick="toggleCollapsible(this)">
+        <div class="header">
+          <span>Prove Control on Demand</span>
+          <span class="toggle">+</span>
+        </div>
+        <div class="body">
+          Answer audit questions from logs:<br>
+          &bull; Which agents were active in this window?<br>
+          &bull; What actions were taken on behalf of this user?<br>
+          &bull; What policy justified this delegation?
+        </div>
+      </div>
+
+      <div class="collapsible" onclick="toggleCollapsible(this)">
+        <div class="header">
+          <span>Accountability Chain</span>
+          <span class="toggle">+</span>
+        </div>
+        <div class="body">
+          Immutable, tamper-evident logs capture: agent ID, subject ID, resource, action, decision (allow/deny), scope, policy version, and correlation_id linking the entire workflow.
+        </div>
+      </div>
+    </div>
+
+    <div style="flex: 1;">
+      <div style="font-size: 0.5em; text-align: left;">
+        <p style="font-weight: bold; color: var(--purple); margin-bottom: 12px;">Delegation Chain Visualization</p>
+        <div style="border-left: 3px solid var(--purple); padding-left: 16px;">
+          <div style="margin: 12px 0; padding: 8px 12px; background: rgba(53,50,168,0.08); border-radius: 8px;">
+            <strong>Ingress</strong> &mdash; principal: alice@company.com<br>
+            caller: alice | hop: ingress | scopes: full
+          </div>
+          <div style="margin: 12px 0; padding: 8px 12px; background: rgba(141,46,155,0.08); border-radius: 8px;">
+            <strong>Orchestrator &#8594; Data Agent</strong><br>
+            caller: orchestrator | hop: delegation | scopes: read:features
+          </div>
+          <div style="margin: 12px 0; padding: 8px 12px; background: rgba(141,46,155,0.08); border-radius: 8px;">
+            <strong>Orchestrator &#8594; Training Agent</strong><br>
+            caller: orchestrator | hop: delegation | scopes: write:model-registry, provision:gpu
+          </div>
+          <div style="margin: 12px 0; padding: 8px 12px; background: rgba(141,46,155,0.08); border-radius: 8px;">
+            <strong>Orchestrator &#8594; Eval Agent</strong><br>
+            caller: orchestrator | hop: delegation | scopes: read:test-data, write:eval-reports
+          </div>
+          <div style="margin: 12px 0; padding: 8px 12px; background: rgba(204,47,170,0.08); border-radius: 8px;">
+            <strong>Orchestrator &#8594; Deploy Agent</strong><br>
+            caller: orchestrator | hop: delegation | scopes: deploy:staging
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="slide-footer">PyTorch Conference Europe 2026</div>
+</section>
+
+<!-- ==================== SLIDE 10: THE FIX - ARCHITECTURE ==================== -->
+<section class="content-slide">
+  <h2>The Fix: Agentic IAM Architecture</h2>
+  <p class="subtitle-text">Same ML pipeline &mdash; now with per-agent identity, On-Behalf-Of delegation, and observability</p>
+
+  <div style="margin-top: 16px;">
+    <!-- Architecture layers -->
+    <div class="arch-label">Identity Layer</div>
+    <div class="arch-row">
+      <div class="arch-box spire">SPIRE Server<br><span style="font-weight:normal;font-size:0.85em;">Trust Domain</span></div>
+      <div class="arch-box keycloak">Keycloak<br><span style="font-weight:normal;font-size:0.85em;">Token Exchange (RFC 8693)</span></div>
+    </div>
+
+    <div class="arch-label" style="margin-top: 12px;">Data Plane (per pod)</div>
+    <div class="arch-row">
+      <div class="arch-box app">Orchestrator<br><span style="font-weight:normal;font-size:0.85em;">+ Agent Card</span></div>
+      <div class="arch-box app">Data Agent<br><span style="font-weight:normal;font-size:0.85em;">+ Agent Card</span></div>
+      <div class="arch-box app">Training Agent<br><span style="font-weight:normal;font-size:0.85em;">+ Agent Card</span></div>
+      <div class="arch-box app">Eval Agent<br><span style="font-weight:normal;font-size:0.85em;">+ Agent Card</span></div>
+      <div class="arch-box app">Deploy Agent<br><span style="font-weight:normal;font-size:0.85em;">+ Agent Card</span></div>
+    </div>
+    <div class="arch-row">
+      <div class="arch-box klaviger">Sidecar Proxy<br><span style="font-weight:normal;font-size:0.85em;">Verify + Exchange</span></div>
+      <div class="arch-box klaviger">Sidecar Proxy<br><span style="font-weight:normal;font-size:0.85em;">Verify + Exchange</span></div>
+      <div class="arch-box klaviger">Sidecar Proxy<br><span style="font-weight:normal;font-size:0.85em;">Verify + Exchange</span></div>
+      <div class="arch-box klaviger">Sidecar Proxy<br><span style="font-weight:normal;font-size:0.85em;">Verify + Exchange</span></div>
+      <div class="arch-box klaviger">Sidecar Proxy<br><span style="font-weight:normal;font-size:0.85em;">Verify + Exchange</span></div>
+    </div>
+
+    <!-- Scope narrowing -->
+    <div style="margin-top: 16px;">
+      <div class="arch-label">Scope Narrowing Across the Chain</div>
+      <div style="padding: 0 20px;">
+        <div class="scope-bar" style="width: 100%; background: linear-gradient(90deg, var(--blue), var(--purple));">Orchestrator: read:features write:model-registry provision:gpu read:test-data write:eval deploy:staging</div>
+        <div class="scope-bar fragment" style="width: 30%; background: var(--blue);">Data: read:features</div>
+        <div class="scope-bar fragment" style="width: 50%; background: var(--purple);">Training: write:model-registry provision:gpu</div>
+        <div class="scope-bar fragment" style="width: 45%; background: var(--magenta);">Eval: read:test-data write:eval-reports</div>
+        <div class="scope-bar fragment" style="width: 25%; background: var(--green);">Deploy: deploy:staging</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="slide-footer">PyTorch Conference Europe 2026</div>
+</section>
+
+<!-- ==================== SLIDE 11: LIVE DEMO - AGENTIC IAM ==================== -->
+<section class="content-slide">
+  <div class="demo-banner" style="background: linear-gradient(135deg, var(--green), #1b5e20);">
+    <div class="demo-label">Live Demo</div>
+    Agentic IAM Works
+  </div>
+
+  <div style="margin-top: 24px;">
+    <div class="fix-card fragment">
+      <div class="label">Each agent has its own SPIFFE identity</div>
+      <code>spiffe://cluster.local/ns/ml-pipeline/sa/training-agent</code> &mdash; cryptographically attested
+    </div>
+    <div class="fix-card fragment">
+      <div class="label">On-Behalf-Of tokens preserve accountability</div>
+      Subject: alice@company.com | Actor: training-agent | Scope: write:model-registry
+    </div>
+    <div class="fix-card fragment">
+      <div class="label">Least privilege enforced &mdash; scope narrowing in action</div>
+      <div style="display:flex; gap:16px; margin-top:8px; align-items:flex-start;">
+        <div style="flex:1; line-height:1.6;">
+          <strong>How scope narrowing protects the pipeline:</strong><br>
+          1. Alice's token has <em>all</em> scopes<br>
+          2. Orchestrator delegates to data-agent requesting only <code>scope=read:features</code><br>
+          3. Keycloak SPI narrows the token &mdash; data-agent receives a token with <strong>only</strong> <code>read:features</code><br>
+          4. Even if data-agent is buggy, misconfigured, or compromised &mdash; it <strong style="color: var(--red);">cannot</strong> write to model-registry
+        </div>
+        <div style="flex:0.8;">
+          <div style="background:var(--dark); border-radius:8px; padding:10px 14px; font-family:'Courier New',monospace; font-size:0.85em; color:#e0e0e0;">
+            <div style="color:#888; margin-bottom:4px;">// data-agent's token</div>
+            <div><span style="color:var(--magenta);">"sub"</span>: <span style="color:#81d4fa;">"alice"</span></div>
+            <div><span style="color:var(--magenta);">"act.sub"</span>: <span style="color:#66bb6a;">"orchestrator"</span></div>
+            <div><span style="color:var(--magenta);">"scope"</span>: <span style="color:#66bb6a;">"read:features"</span></div>
+            <div style="margin-top:6px; padding-top:6px; border-top:1px solid #444; color:#ef5350;">
+              &#10008; write:model-registry &mdash; NOT in scope
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="fix-card fragment">
+      <div class="label">Full delegation chain visible</div>
+      Alice &#8594; Orchestrator &#8594; Training Agent &mdash; every hop traced, every actor recorded
+    </div>
+  </div>
+
+  <div class="slide-footer">PyTorch Conference Europe 2026</div>
+</section>
+
+<!-- ==================== SLIDE 12: TOKEN EXCHANGE FLOW ==================== -->
+<section class="content-slide">
+  <h2>How the Token Exchange Actually Works</h2>
+  <p class="subtitle-text">End-to-end: Alice triggers the pipeline, tokens exchange at every hop</p>
+
+  <div style="display: flex; gap: 20px; margin-top: 12px;">
+    <!-- Left: Flow diagram -->
+    <div style="flex: 1.2; font-size: 0.42em; font-family: 'Courier New', monospace; line-height: 1.7; color: var(--dark);">
+
+      <!-- Alice -->
+      <div style="background: rgba(53,50,168,0.08); border: 2px solid var(--blue); border-radius: 10px; padding: 10px 14px; margin-bottom: 6px;">
+        <strong style="color: var(--blue); font-size: 1.15em;">Alice (Browser)</strong><br>
+        <span style="color: #888;">POST</span> /api/login &#8594; Orchestrator &#8594; <strong>Keycloak password grant</strong><br>
+        <span style="color: #888;">Returns:</span> <span style="color: var(--blue);">access_token</span> (<code>sub=alice</code>, all scopes)<br>
+        <span style="color: #888;">POST</span> /api/run-pipeline with <span style="color: var(--blue);">Bearer &lt;alice-token&gt;</span>
+      </div>
+
+      <!-- Arrow -->
+      <div style="text-align: center; color: var(--purple); font-size: 1.6em; margin: 2px 0;">&#8595;</div>
+
+      <!-- Orchestrator -->
+      <div style="background: rgba(141,46,155,0.08); border: 2px solid var(--purple); border-radius: 10px; padding: 10px 14px; margin-bottom: 6px;">
+        <strong style="color: var(--purple); font-size: 1.15em;">Orchestrator Pod</strong><br>
+        <span style="color: var(--green);">&#10004;</span> <strong>Reverse proxy</strong>: verifies alice-token against Keycloak JWKS<br>
+        <span style="color: #888;">Calls downstream &#8594;</span> training-agent<br>
+        <div style="background: rgba(0,0,0,0.04); border-radius: 6px; padding: 8px 10px; margin-top: 6px; border-left: 3px solid var(--purple);">
+          <strong style="color: var(--purple);">Forward proxy intercepts:</strong><br>
+          1. <code>subject_token</code> = alice-token <span style="color: #888;">(who we're acting for)</span><br>
+          2. <code>client_assertion</code> = K8s SA JWT <span style="color: #888;">(who we are)</span><br>
+          3. Calls <strong>Keycloak token exchange</strong> (RFC 8693)<br>
+          4. Keycloak returns <strong>NEW</strong> token:
+          <div style="margin-left: 16px; margin-top: 4px;">
+            <span style="color: var(--blue);">sub</span>=alice,
+            <span style="color: var(--green);">act.sub</span>=orchestrator,
+            <span style="color: var(--green);">scope</span>=<em>narrowed</em>
+          </div>
+        </div>
+      </div>
+
+      <!-- Arrow -->
+      <div style="text-align: center; color: var(--purple); font-size: 1.6em; margin: 2px 0;">&#8595;</div>
+
+      <!-- Training Agent -->
+      <div style="background: rgba(46,125,50,0.08); border: 2px solid var(--green); border-radius: 10px; padding: 10px 14px;">
+        <strong style="color: var(--green); font-size: 1.15em;">Training Agent Pod</strong><br>
+        <span style="color: var(--green);">&#10004;</span> <strong>Reverse proxy</strong>: verifies the exchanged token<br>
+        <span style="color: #888;">Knows:</span> <code>sub=alice</code>, <code>act.sub=orchestrator</code> &mdash; <strong>WHO</strong> and <strong>ON WHOSE BEHALF</strong><br>
+        <div style="background: rgba(0,0,0,0.04); border-radius: 6px; padding: 8px 10px; margin-top: 6px; border-left: 3px solid var(--green);">
+          <strong style="color: var(--green);">Another token exchange for data-agent:</strong><br>
+          <code>subject_token</code> = alice-via-orchestrator token<br>
+          <code>client_assertion</code> = training-agent SA JWT<br>
+          &#8594; New token: <span style="color: var(--blue);">sub</span>=alice, <span style="color: var(--green);">act.sub</span>=training-agent, <span style="color: var(--green);">scope</span>=<em>further narrowed</em>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Key points -->
+    <div style="flex: 0.8;">
+      <div style="font-size: 0.48em; margin-bottom: 16px;">
+        <div style="font-weight: bold; color: var(--purple); margin-bottom: 10px; font-size: 1.1em;">What happens at each hop</div>
+        <div style="background: rgba(141,46,155,0.06); border-radius: 8px; padding: 12px 14px; margin-bottom: 10px; line-height: 1.7;">
+          <strong style="color: var(--purple);">1. Reverse proxy</strong> (inbound)<br>
+          Verifies incoming token against Keycloak JWKS. Rejects invalid/expired tokens.
+        </div>
+        <div style="background: rgba(141,46,155,0.06); border-radius: 8px; padding: 12px 14px; margin-bottom: 10px; line-height: 1.7;">
+          <strong style="color: var(--purple);">2. Forward proxy</strong> (outbound)<br>
+          Intercepts call to downstream agent. Exchanges token via RFC 8693 with narrowed scopes.
+        </div>
+        <div style="background: rgba(141,46,155,0.06); border-radius: 8px; padding: 12px 14px; margin-bottom: 10px; line-height: 1.7;">
+          <strong style="color: var(--purple);">3. Keycloak SPI</strong><br>
+          Intersects requested scopes with allowed scopes. Injects <code>act</code> claim. Can only narrow, never expand.
+        </div>
+      </div>
+
+      <div class="token-visual" style="font-size: 0.85em;">
+        <div style="color:#888; margin-bottom:4px;">// Token at each hop</div>
+        <div><span class="key">"sub"</span>: <span class="value">"alice"</span> <span style="color:#888;">// always preserved</span></div>
+        <div><span class="key">"act.sub"</span>: <span class="value highlight-green">"current-agent"</span> <span style="color:#888;">// changes per hop</span></div>
+        <div><span class="key">"scope"</span>: <span class="value highlight-green">"narrower..."</span> <span style="color:#888;">// shrinks per hop</span></div>
+      </div>
+
+      <div style="font-size: 0.42em; margin-top: 12px; padding: 10px 14px; background: rgba(46,125,50,0.08); border-radius: 8px; border-left: 3px solid var(--green); line-height: 1.6;">
+        <strong style="color: var(--green);">Key insight:</strong> The agent code doesn't know about any of this. The sidecar proxy handles everything transparently. Same agent binary runs in classic and agentic mode.
+      </div>
+    </div>
+  </div>
+
+  <div class="slide-footer">PyTorch Conference Europe 2026</div>
+</section>
+
+<!-- ==================== SLIDE 13: CAPABILITY-RISK MATRIX ==================== -->
+<section class="content-slide">
+  <h2>Capability-Risk Classification</h2>
+  <p class="subtitle-text">Controls scale with risk &mdash; not all agents need full Agentic IAM</p>
+
+  <table class="matrix" style="margin-top: 16px;">
+    <tr>
+      <th>Classification</th>
+      <th>Example</th>
+      <th>Required Controls</th>
+      <th>Our Agents</th>
+    </tr>
+    <tr>
+      <td>Low cap / Low risk</td>
+      <td>FAQ lookup, public Q&A</td>
+      <td>Narrowly scoped SA, basic logging</td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>High cap / Low risk</td>
+      <td>Internal automation on constrained data</td>
+      <td>Short-lived tokens, anomaly detection</td>
+      <td>
+        <span class="agent-tag">Data Agent</span>
+        <span class="agent-tag">Eval Agent</span>
+      </td>
+    </tr>
+    <tr>
+      <td>Low cap / High risk</td>
+      <td>Read-only access to sensitive data</td>
+      <td>Environment attestation, JIT credentials</td>
+      <td></td>
+    </tr>
+    <tr class="highlight">
+      <td>High cap / High risk</td>
+      <td>Financial ops, admin/devops, PII</td>
+      <td>Full Agentic IAM: On-Behalf-Of, token exchange, ABAC/PBAC, human-in-the-loop</td>
+      <td>
+        <span class="agent-tag">Orchestrator</span>
+        <span class="agent-tag">Training</span>
+        <span class="agent-tag">Deploy</span>
+      </td>
+    </tr>
+  </table>
+
+  <p style="font-size: 0.5em; color: var(--gray); margin-top: 12px;">
+    All agents SHOULD be registered and monitored. The matrix adjusts control <em>strength</em>, not whether controls exist.
+  </p>
+
+  <div class="slide-footer">PyTorch Conference Europe 2026</div>
+</section>
+
+<!-- ==================== SLIDE 13: PHASED ADOPTION ==================== -->
+<section class="content-slide">
+  <h2>Phased Adoption</h2>
+  <p class="subtitle-text">You don't have to boil the ocean</p>
+
+  <div class="phases" style="margin-top: 24px;">
+    <div class="phase p1" onclick="togglePhase(this)">
+      <div class="phase-label" style="color: var(--blue);">Phase 1: Visibility</div>
+      <p style="line-height: 1.5;">Register all agents as identities. Eliminate shared accounts. Immutable logging.</p>
+      <div class="phase-details">
+        <strong>Outcome:</strong> No agent outside the identity perimeter. Clear actor attribution.<br><br>
+        <strong>Actions:</strong><br>
+        &bull; Deploy SPIRE for workload attestation<br>
+        &bull; Give each agent its own service account<br>
+        &bull; Add basic OTel tracing
+      </div>
+    </div>
+    <div class="phase p2" onclick="togglePhase(this)">
+      <div class="phase-label" style="color: var(--purple);">Phase 2: Contextual Access</div>
+      <p style="line-height: 1.5;">Short-lived tokens and ABAC/PBAC for higher-risk agents.</p>
+      <div class="phase-details">
+        <strong>Outcome:</strong> No standing privilege for high-risk agents. Adaptive authorization.<br><br>
+        <strong>Actions:</strong><br>
+        &bull; Deploy Sidecar Proxy sidecars for token exchange<br>
+        &bull; Implement On-Behalf-Of delegation (RFC 8693)<br>
+        &bull; Add scope narrowing per delegation hop
+      </div>
+    </div>
+    <div class="phase p3" onclick="togglePhase(this)">
+      <div class="phase-label" style="color: var(--magenta);">Phase 3: Full Agentic IAM</div>
+      <p style="line-height: 1.5;">Cross-domain delegation, continuous evaluation, human-in-the-loop.</p>
+      <div class="phase-details">
+        <strong>Outcome:</strong> "Prove control on demand." No autonomous workload outside the control plane.<br><br>
+        <strong>Actions:</strong><br>
+        &bull; Agent Cards with signed identity binding<br>
+        &bull; Automated discovery of new agents<br>
+        &bull; Anomaly detection on delegation patterns<br>
+        &bull; Human-in-the-loop for critical actions
+      </div>
+    </div>
+  </div>
+
+  <p style="font-size: 0.5em; color: var(--gray); margin-top: 8px;">
+    Each phase is cumulative. Start with Phase 1 as soon as agents are introduced.
+  </p>
+
+  <div class="slide-footer">PyTorch Conference Europe 2026</div>
+</section>
+
+<!-- ==================== SLIDE 14: OPEN QUESTIONS ==================== -->
+<section class="content-slide">
+  <h2>Open Questions</h2>
+  <p class="subtitle-text">What we're still solving</p>
+
+  <div style="margin-top: 24px;">
+    <div class="collapsible" onclick="toggleCollapsible(this)" style="font-size: 0.6em;">
+      <div class="header">
+        <span>Cross-domain delegation</span>
+        <span class="toggle">+</span>
+      </div>
+      <div class="body">
+        How do delegation chains work across organizational boundaries? OAuth Federation helps but isn't complete for agents.
+      </div>
+    </div>
+    <div class="collapsible" onclick="toggleCollapsible(this)" style="font-size: 0.6em;">
+      <div class="header">
+        <span>Dynamic capability discovery</span>
+        <span class="toggle">+</span>
+      </div>
+      <div class="body">
+        Agents discover each other by skill, not DNS name. How do we make this secure at scale without a central registry bottleneck?
+      </div>
+    </div>
+    <div class="collapsible" onclick="toggleCollapsible(this)" style="font-size: 0.6em;">
+      <div class="header">
+        <span>Revocation cascades</span>
+        <span class="toggle">+</span>
+      </div>
+      <div class="body">
+        When a delegation is revoked mid-chain, how do we invalidate all downstream delegations in near-real-time?
+      </div>
+    </div>
+    <div class="collapsible" onclick="toggleCollapsible(this)" style="font-size: 0.6em;">
+      <div class="header">
+        <span>Behavioral risk scoring</span>
+        <span class="toggle">+</span>
+      </div>
+      <div class="body">
+        How do we continuously evaluate agent behavior and adjust permissions without creating latency in the request path?
+      </div>
+    </div>
+  </div>
+
+  <p style="font-size: 0.55em; color: var(--dark); margin-top: 24px; text-align: center;">
+    <strong>Agentic IAM extends existing infrastructure &mdash; it does not replace it.</strong>
+  </p>
+
+  <div class="slide-footer">PyTorch Conference Europe 2026</div>
+</section>
+
+<!-- ==================== SLIDE 15: CoSAI CTA ==================== -->
+<section class="content-slide">
+  <h2>CoSAI</h2>
+  <p class="subtitle-text">Coalition for Secure AI &mdash; Secure Design for Agentic Systems</p>
+
+  <div style="max-width: 800px; margin: 32px auto 0;">
+    <div class="cta-box">
+      Building shared guidance and emerging standards for agentic identity, delegation, and trust.<br><br>
+      <strong>Get involved:</strong><br>
+      &bull; <a href="https://github.com/cosai-oasis/ws4-secure-design-agentic-systems">github.com/cosai-oasis/ws4-secure-design-agentic-systems</a>
+    </div>
+  </div>
+
+  <div class="slide-footer">PyTorch Conference Europe 2026</div>
+</section>
+
+</div><!-- /slides -->
+</div><!-- /reveal -->
+
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+<script>
+  Reveal.initialize({
+    hash: true,
+    width: 1920,
+    height: 1080,
+    margin: 0.04,
+    slideNumber: true,
+    transition: 'slide',
+    transitionSpeed: 'default',
+    pdfSeparateFragments: false,
+    pdfMaxPagesPerSlide: 1,
+    scrollActivationWidth: null,
+  });
+
+  // Make slides scrollable when content overflows
+  Reveal.on('slidechanged', () => {
+    document.querySelectorAll('.reveal .slides section').forEach(s => {
+      s.style.overflow = 'auto';
+      s.style.maxHeight = '100%';
+    });
+  });
+  // Also run on load
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.reveal .slides section').forEach(s => {
+      s.style.overflow = 'auto';
+      s.style.maxHeight = '100%';
+    });
+  });
+
+  function toggleCollapsible(el) {
+    // Close siblings (accordion) so content doesn't overflow the slide
+    const parent = el.parentElement;
+    parent.querySelectorAll('.collapsible.open').forEach(sib => {
+      if (sib !== el) sib.classList.remove('open');
+    });
+    el.classList.toggle('open');
+  }
+
+  function togglePhase(el) {
+    el.classList.toggle('open');
+  }
+</script>
+</body>
+</html>
