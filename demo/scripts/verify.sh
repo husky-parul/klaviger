@@ -55,7 +55,7 @@ fi
 echo ""
 echo "--- Images ---"
 CTR=$(command -v podman 2>/dev/null || command -v docker 2>/dev/null || echo "")
-for img in demo-ml-agent demo-model-registry; do
+for img in demo-ml-agent demo-model-registry klaviger; do
   if [ -n "$CTR" ] && $CTR image inspect "${img}:latest" &>/dev/null; then
     echo "  ${img}:latest [OK]"
   else

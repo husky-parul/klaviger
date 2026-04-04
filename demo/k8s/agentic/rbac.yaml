@@ -52,3 +52,17 @@ metadata:
   namespace: agentic-ml
   labels:
     demo: agentic-iam
+---
+# Allow authenticated users to access K8s OIDC discovery (needed for Agent Card verification)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: oidc-discovery-public
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:service-account-issuer-discovery
+subjects:
+- apiGroup: rbac.authorization.k8s.io
+  kind: Group
+  name: system:authenticated

@@ -22,6 +22,9 @@ data:
           issuer: "http://keycloak.agentic-ml.svc/realms/demo"
           audience: "orchestrator"
           cacheTtl: "5m"
+      publicPaths:
+        - "/.well-known/"
+        - "/api/login"
 
     forwardProxy:
       defaultMode:
@@ -104,6 +107,9 @@ data:
           issuer: "http://keycloak.agentic-ml.svc/realms/demo"
           audience: "account"
           cacheTtl: "5m"
+      publicPaths:
+        - "/.well-known/"
+        - "/api/login"
 
     forwardProxy:
       defaultMode:
@@ -145,6 +151,9 @@ data:
           issuer: "http://keycloak.agentic-ml.svc/realms/demo"
           audience: "account"
           cacheTtl: "5m"
+      publicPaths:
+        - "/.well-known/"
+        - "/api/login"
 
     forwardProxy:
       defaultMode:
@@ -186,6 +195,9 @@ data:
           issuer: "http://keycloak.agentic-ml.svc/realms/demo"
           audience: "account"
           cacheTtl: "5m"
+      publicPaths:
+        - "/.well-known/"
+        - "/api/login"
 
     forwardProxy:
       defaultMode:
@@ -227,6 +239,9 @@ data:
           issuer: "http://keycloak.agentic-ml.svc/realms/demo"
           audience: "account"
           cacheTtl: "5m"
+      publicPaths:
+        - "/.well-known/"
+        - "/api/login"
 
     forwardProxy:
       defaultMode:

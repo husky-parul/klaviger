@@ -9,24 +9,24 @@ pkill -f "kubectl.*port-forward" 2>/dev/null || true
 sleep 1
 
 # Classic pipeline
-echo "Classic orchestrator -> localhost:8081"
-kubectl -n classic-ml port-forward svc/orchestrator 8081:80 &>/dev/null &
+echo "Classic orchestrator -> localhost:18081"
+kubectl -n classic-ml port-forward svc/orchestrator 18081:80 &>/dev/null &
 
 # Agentic pipeline
-echo "Agentic orchestrator -> localhost:8082"
-kubectl -n agentic-ml port-forward svc/orchestrator 8082:80 &>/dev/null &
+echo "Agentic orchestrator -> localhost:18082"
+kubectl -n agentic-ml port-forward svc/orchestrator 18082:80 &>/dev/null &
 
 # Keycloak admin
-echo "Keycloak admin       -> localhost:9080"
-kubectl -n agentic-ml port-forward svc/keycloak 9080:80 &>/dev/null &
+echo "Keycloak admin       -> localhost:18080"
+kubectl -n agentic-ml port-forward svc/keycloak 18080:80 &>/dev/null &
 
 echo ""
 echo "=== Port-forwards active ==="
 echo ""
 echo "Endpoints:"
-echo "  Classic orchestrator:  http://localhost:8081"
-echo "  Agentic orchestrator:  http://localhost:8082"
-echo "  Keycloak admin:        http://localhost:9080 (admin/admin)"
+echo "  Classic orchestrator:  http://localhost:18081"
+echo "  Agentic orchestrator:  http://localhost:18082"
+echo "  Keycloak admin:        http://localhost:18080 (admin/admin)"
 echo ""
 echo "Dashboard: open demo/dashboard/index.html in a browser"
 echo ""

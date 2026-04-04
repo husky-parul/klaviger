@@ -57,8 +57,8 @@ spec:
           requests: { memory: "32Mi", cpu: "50m" }
           limits: { memory: "128Mi", cpu: "200m" }
       - name: klaviger
-        image: quay.io/gordons/klaviger:latest
-        imagePullPolicy: Always
+        image: klaviger:latest
+        imagePullPolicy: Never
         ports:
         - containerPort: 8180
           name: reverse-proxy
@@ -136,6 +136,8 @@ spec:
           value: "http://127.0.0.1:8181"
         - name: DOWNSTREAM
           value: "http://data-agent,http://training-agent,http://eval-agent,http://deploy-agent"
+        - name: KEYCLOAK_TOKEN_URL
+          value: "http://keycloak.agentic-ml.svc/realms/demo/protocol/openid-connect/token"
         - name: ENABLE_AGENT_CARD
           value: "true"
         - name: AGENT_SKILLS
@@ -154,8 +156,8 @@ spec:
           requests: { memory: "32Mi", cpu: "50m" }
           limits: { memory: "128Mi", cpu: "200m" }
       - name: klaviger
-        image: quay.io/gordons/klaviger:latest
-        imagePullPolicy: Always
+        image: klaviger:latest
+        imagePullPolicy: Never
         ports:
         - containerPort: 8180
           name: reverse-proxy
@@ -260,8 +262,8 @@ spec:
           requests: { memory: "32Mi", cpu: "50m" }
           limits: { memory: "128Mi", cpu: "200m" }
       - name: klaviger
-        image: quay.io/gordons/klaviger:latest
-        imagePullPolicy: Always
+        image: klaviger:latest
+        imagePullPolicy: Never
         ports:
         - containerPort: 8180
           name: reverse-proxy
@@ -366,8 +368,8 @@ spec:
           requests: { memory: "32Mi", cpu: "50m" }
           limits: { memory: "128Mi", cpu: "200m" }
       - name: klaviger
-        image: quay.io/gordons/klaviger:latest
-        imagePullPolicy: Always
+        image: klaviger:latest
+        imagePullPolicy: Never
         ports:
         - containerPort: 8180
           name: reverse-proxy
@@ -470,8 +472,8 @@ spec:
           requests: { memory: "32Mi", cpu: "50m" }
           limits: { memory: "128Mi", cpu: "200m" }
       - name: klaviger
-        image: quay.io/gordons/klaviger:latest
-        imagePullPolicy: Always
+        image: klaviger:latest
+        imagePullPolicy: Never
         ports:
         - containerPort: 8180
           name: reverse-proxy
@@ -574,8 +576,8 @@ spec:
           requests: { memory: "32Mi", cpu: "50m" }
           limits: { memory: "128Mi", cpu: "200m" }
       - name: klaviger
-        image: quay.io/gordons/klaviger:latest
-        imagePullPolicy: Always
+        image: klaviger:latest
+        imagePullPolicy: Never
         ports:
         - containerPort: 8180
           name: reverse-proxy

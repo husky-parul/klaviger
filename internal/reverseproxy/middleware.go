@@ -30,6 +30,12 @@ func AuthMiddleware(verifier auth.Verifier, logger *zap.Logger) func(http.Handle
 			ctx, span := tracer.Start(r.Context(), "auth-middleware")
 			defer span.End()
 
+			// Allow CORS preflight requests through without auth
+			if r.Method == http.MethodOptions {
+				next.ServeHTTP(w, r)
+				return
+			}
+
 			// Extract token from Authorization header
 			authHeader := r.Header.Get("Authorization")
 			if authHeader == "" {

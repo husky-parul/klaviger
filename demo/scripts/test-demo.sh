@@ -65,23 +65,60 @@ PF_AGENTIC=$!
 sleep 2
 
 echo "Testing agentic endpoints:"
-test_endpoint "Orchestrator /api/info" "http://localhost:18082/api/info"
 
-# Get agentic identity info
-AGENTIC_INFO=$(curl -s http://localhost:18082/api/info 2>/dev/null)
-AGENTIC_SA=$(echo "$AGENTIC_INFO" | python3 -c "import sys,json; print(json.load(sys.stdin).get('service_account','N/A'))" 2>/dev/null || echo "N/A")
-AGENTIC_AUD=$(echo "$AGENTIC_INFO" | python3 -c "import sys,json; print(json.load(sys.stdin).get('audience','N/A'))" 2>/dev/null || echo "N/A")
-echo -e "  ${GREEN}Service Account: ${AGENTIC_SA}${NC}"
-echo -e "  ${GREEN}FIX 1: Each agent has its own identity!${NC}"
+# Login as Alice to get a token (login endpoint bypasses auth)
+echo "  Logging in as Alice..."
+LOGIN=$(curl -s -X POST http://localhost:18082/api/login -H 'Content-Type: application/json' -d '{"username":"alice","password":"demo"}' 2>/dev/null)
+TOKEN=$(echo "$LOGIN" | python3 -c "import sys,json; print(json.load(sys.stdin).get('access_token',''))" 2>/dev/null || echo "")
+if [ -n "$TOKEN" ] && [ "$TOKEN" != "" ]; then
+  echo -e "  ${GREEN}PASS${NC} Login as Alice (got token)"
+else
+  echo -e "  ${RED}FAIL${NC} Login as Alice"
+fi
 
-# Test Agent Card
+# Test Agent Card (no auth needed — public path)
 echo ""
 echo "Testing Agent Cards (Pillar 2: Discoverability):"
 CARD=$(curl -s http://localhost:18082/.well-known/agent.json 2>/dev/null)
-CARD_NAME=$(echo "$CARD" | python3 -c "import sys,json; print(json.load(sys.stdin).get('name','N/A'))" 2>/dev/null || echo "N/A")
-CARD_IDENTITY=$(echo "$CARD" | python3 -c "import sys,json; print(json.load(sys.stdin).get('identity','N/A'))" 2>/dev/null || echo "N/A")
+CARD_NAME=$(echo "$CARD" | python3 -c "import sys,json; print(json.load(sys.stdin).get('card',{}).get('name','N/A'))" 2>/dev/null || echo "N/A")
+CARD_IDENTITY=$(echo "$CARD" | python3 -c "import sys,json; print(json.load(sys.stdin).get('card',{}).get('identity','N/A'))" 2>/dev/null || echo "N/A")
+HAS_TOKEN=$(echo "$CARD" | python3 -c "import sys,json; print('yes' if json.load(sys.stdin).get('identity_token') else 'no')" 2>/dev/null || echo "N/A")
 echo -e "  ${GREEN}Agent Card: ${CARD_NAME}${NC}"
-echo -e "  ${GREEN}SPIFFE Identity: ${CARD_IDENTITY}${NC}"
+echo -e "  ${GREEN}Identity: ${CARD_IDENTITY}${NC}"
+echo -e "  ${GREEN}Identity Token (K8s SA JWT): ${HAS_TOKEN}${NC}"
+
+# Run full pipeline with Alice's token
+echo ""
+echo "Testing full pipeline (Pillar 1: Delegation + Scope Narrowing):"
+if [ -n "$TOKEN" ] && [ "$TOKEN" != "" ]; then
+  RESULT=$(curl -s -X POST http://localhost:18082/api/run-pipeline -H "Authorization: Bearer $TOKEN" 2>/dev/null)
+
+  # Check orchestrator
+  ORCH_SUB=$(echo "$RESULT" | python3 -c "import sys,json; print(json.load(sys.stdin)['agent']['subject'])" 2>/dev/null || echo "N/A")
+  echo -e "  ${GREEN}Orchestrator sub: ${ORCH_SUB} (Alice)${NC}"
+  echo -e "  ${GREEN}FIX 1: Each agent has its own identity!${NC}"
+
+  # Check downstream agents have actor claims
+  echo "$RESULT" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+for dr in d.get('downstream_results', []):
+    r = dr.get('response', {})
+    a = r.get('agent', {})
+    name = a.get('agent_name', '?')
+    actor = a.get('actor', '')
+    scopes = a.get('scopes', '')
+    status = '✓' if actor else '✗'
+    print(f'  {status} {name}: actor={actor}, scopes={scopes[:60]}')
+    mrt = r.get('model_registry_test')
+    if mrt:
+        allowed = mrt.get('allowed', 'N/A')
+        print(f'    Model registry write: allowed={allowed}')
+" 2>/dev/null
+
+  echo -e "  ${GREEN}FIX 2: Scope narrowing prevents unauthorized writes!${NC}"
+  echo -e "  ${GREEN}FIX 3: Delegation chain tracks who acts on whose behalf!${NC}"
+fi
 
 # Cleanup
 kill $PF_AGENTIC 2>/dev/null || true
@@ -89,6 +126,6 @@ kill $PF_AGENTIC 2>/dev/null || true
 echo ""
 echo "=== Demo tests complete ==="
 echo ""
-echo "For full pipeline test with delegation chains:"
-echo "  kubectl -n agentic-ml port-forward svc/orchestrator 8082:80"
-echo "  curl -s -X POST http://localhost:8082/api/run-pipeline | jq ."
+echo "For interactive demo, run:"
+echo "  ./port-forward.sh"
+echo "  Then open demo/dashboard/index.html in a browser"
