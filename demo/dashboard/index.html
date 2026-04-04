@@ -433,10 +433,24 @@ async function runPipeline() {
     // Animate orchestrator
     setNodeState('orchestrator', 'running', 'RUNNING');
 
+    // For agentic mode, get Alice's token first (via orchestrator to avoid issuer mismatch)
+    let authHeaders = { 'Content-Type': 'application/json' };
+    if (currentMode === 'agentic') {
+      const loginResp = await fetch(`${baseUrl}/api/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: 'alice', password: 'demo' }),
+      });
+      const loginData = await loginResp.json();
+      if (loginData.access_token) {
+        authHeaders['Authorization'] = `Bearer ${loginData.access_token}`;
+      }
+    }
+
     // Call orchestrator's run-pipeline endpoint
     const resp = await fetch(`${baseUrl}/api/run-pipeline`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders,
     });
 
     const data = await resp.json();

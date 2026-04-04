@@ -15,6 +15,7 @@ import os
 import sys
 import urllib.request
 import urllib.error
+import urllib.parse
 import base64
 import time
 
@@ -27,6 +28,7 @@ AGENT_CAPABILITIES = os.environ.get("AGENT_CAPABILITIES", "")
 AGENT_IDENTITY = os.environ.get("AGENT_IDENTITY", "")
 ENABLE_AGENT_CARD = os.environ.get("ENABLE_AGENT_CARD", "false").lower() == "true"
 MODEL_REGISTRY_URL = os.environ.get("MODEL_REGISTRY_URL", "")
+KEYCLOAK_TOKEN_URL = os.environ.get("KEYCLOAK_TOKEN_URL", "")
 SA_TOKEN_PATH = "/var/run/secrets/kubernetes.io/serviceaccount/token"
 SA_NAMESPACE_PATH = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
 
@@ -127,8 +129,12 @@ def call_downstream(url, headers):
     try:
         req = urllib.request.Request(url, data=b'{}', method="POST")
 
-        # Forward Authorization header
+        # Forward Authorization header; if none, use own SA token as subject token
         auth = headers.get("Authorization", "")
+        if not auth:
+            sa_token = read_file_safe(SA_TOKEN_PATH)
+            if sa_token:
+                auth = f"Bearer {sa_token}"
         if auth:
             req.add_header("Authorization", auth)
 
@@ -266,6 +272,35 @@ class DemoHandler(http.server.BaseHTTPRequestHandler):
         self.send_json(200, info)
 
     def do_POST(self):
+        if self.path == "/api/login":
+            # Get a Keycloak token for the demo user (from inside the cluster, correct issuer)
+            if not KEYCLOAK_TOKEN_URL:
+                self.send_json(500, {"error": "KEYCLOAK_TOKEN_URL not configured"})
+                return
+            content_length = int(self.headers.get("Content-Length", 0))
+            body = json.loads(self.rfile.read(content_length)) if content_length else {}
+            username = body.get("username", "alice")
+            password = body.get("password", "demo")
+            try:
+                data = urllib.parse.urlencode({
+                    "grant_type": "password",
+                    "client_id": "demo-dashboard",
+                    "username": username,
+                    "password": password,
+                    "scope": "openid",
+                }).encode("utf-8")
+                req = urllib.request.Request(KEYCLOAK_TOKEN_URL, data=data, method="POST")
+                req.add_header("Content-Type", "application/x-www-form-urlencoded")
+                resp = urllib.request.urlopen(req, timeout=10)
+                token_data = json.loads(resp.read().decode("utf-8"))
+                self.send_json(200, token_data)
+            except urllib.error.HTTPError as e:
+                err = e.read().decode("utf-8") if e.fp else ""
+                self.send_json(e.code, {"error": err})
+            except Exception as e:
+                self.send_json(500, {"error": str(e)})
+            return
+
         if self.path == "/api/run-pipeline":
             # Run the full pipeline: get own info, call downstream, optionally test model-registry
             info = get_identity_info(dict(self.headers))
