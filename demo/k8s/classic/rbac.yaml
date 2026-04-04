@@ -1,0 +1,34 @@
+---
+# Single shared ServiceAccount for ALL agents (classic IAM anti-pattern)
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ml-pipeline-sa
+  namespace: classic-ml
+  labels:
+    demo: classic-iam
+---
+# Overly broad role - can do everything
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ml-pipeline-role
+  namespace: classic-ml
+rules:
+- apiGroups: [""]
+  resources: ["pods", "services", "configmaps", "secrets"]
+  verbs: ["get", "list", "watch", "create", "update", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ml-pipeline-binding
+  namespace: classic-ml
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ml-pipeline-role
+subjects:
+- kind: ServiceAccount
+  name: ml-pipeline-sa
+  namespace: classic-ml

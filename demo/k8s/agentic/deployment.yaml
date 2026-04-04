@@ -1,0 +1,609 @@
+---
+# Model Registry Service (with scope checking in agentic mode)
+apiVersion: v1
+kind: Service
+metadata:
+  name: model-registry
+  namespace: agentic-ml
+  labels:
+    app: model-registry
+spec:
+  selector:
+    app: model-registry
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8180
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: model-registry
+  namespace: agentic-ml
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: model-registry
+  template:
+    metadata:
+      labels:
+        app: model-registry
+    spec:
+      serviceAccountName: model-registry
+      containers:
+      - name: model-registry
+        image: demo-model-registry:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8080
+        env:
+        - name: PORT
+          value: "8080"
+        - name: BIND_ADDRESS
+          value: "127.0.0.1"
+        - name: AUTH_MODE
+          value: "check-scope"
+        - name: REQUIRED_SCOPE
+          value: "write:model-registry"
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1001
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ALL]
+        resources:
+          requests: { memory: "32Mi", cpu: "50m" }
+          limits: { memory: "128Mi", cpu: "200m" }
+      - name: klaviger
+        image: quay.io/gordons/klaviger:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8180
+          name: reverse-proxy
+        - containerPort: 9090
+          name: metrics
+        args: ["--config", "/etc/klaviger/config.yaml"]
+        volumeMounts:
+        - name: config
+          mountPath: /etc/klaviger
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1001
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ALL]
+        resources:
+          requests: { memory: "64Mi", cpu: "100m" }
+          limits: { memory: "256Mi", cpu: "500m" }
+      volumes:
+      - name: config
+        configMap:
+          name: klaviger-config-data-agent
+---
+# Orchestrator Agent (with Klaviger sidecar)
+apiVersion: v1
+kind: Service
+metadata:
+  name: orchestrator
+  namespace: agentic-ml
+  labels:
+    app: ml-agent
+    agent: orchestrator
+spec:
+  selector:
+    app: ml-agent
+    agent: orchestrator
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8180
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orchestrator
+  namespace: agentic-ml
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ml-agent
+      agent: orchestrator
+  template:
+    metadata:
+      labels:
+        app: ml-agent
+        agent: orchestrator
+    spec:
+      serviceAccountName: orchestrator
+      containers:
+      - name: agent
+        image: demo-ml-agent:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8080
+        env:
+        - name: AGENT_NAME
+          value: "orchestrator"
+        - name: PORT
+          value: "8080"
+        - name: BIND_ADDRESS
+          value: "127.0.0.1"
+        - name: HTTP_PROXY
+          value: "http://127.0.0.1:8181"
+        - name: DOWNSTREAM
+          value: "http://data-agent,http://training-agent,http://eval-agent,http://deploy-agent"
+        - name: ENABLE_AGENT_CARD
+          value: "true"
+        - name: AGENT_SKILLS
+          value: "orchestration,pipeline-management"
+        - name: AGENT_CAPABILITIES
+          value: "read:features,write:model-registry,provision:gpu,read:test-data,write:eval-reports,deploy:staging"
+        - name: AGENT_IDENTITY
+          value: "spiffe://cluster.local/ns/agentic-ml/sa/orchestrator"
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1001
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ALL]
+        resources:
+          requests: { memory: "32Mi", cpu: "50m" }
+          limits: { memory: "128Mi", cpu: "200m" }
+      - name: klaviger
+        image: quay.io/gordons/klaviger:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8180
+          name: reverse-proxy
+        - containerPort: 9090
+          name: metrics
+        args: ["--config", "/etc/klaviger/config.yaml"]
+        volumeMounts:
+        - name: config
+          mountPath: /etc/klaviger
+        - name: satoken
+          mountPath: /var/run/secrets/tokens
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1001
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ALL]
+        resources:
+          requests: { memory: "64Mi", cpu: "100m" }
+          limits: { memory: "256Mi", cpu: "500m" }
+      volumes:
+      - name: config
+        configMap:
+          name: klaviger-config-orchestrator
+      - name: satoken
+        projected:
+          sources:
+          - serviceAccountToken:
+              path: keycloaktoken
+              expirationSeconds: 600
+              audience: http://keycloak.agentic-ml.svc/realms/demo
+---
+# Data Agent (with Klaviger sidecar)
+apiVersion: v1
+kind: Service
+metadata:
+  name: data-agent
+  namespace: agentic-ml
+  labels:
+    app: ml-agent
+    agent: data-agent
+spec:
+  selector:
+    app: ml-agent
+    agent: data-agent
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8180
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: data-agent
+  namespace: agentic-ml
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ml-agent
+      agent: data-agent
+  template:
+    metadata:
+      labels:
+        app: ml-agent
+        agent: data-agent
+    spec:
+      serviceAccountName: data-agent
+      containers:
+      - name: agent
+        image: demo-ml-agent:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8080
+        env:
+        - name: AGENT_NAME
+          value: "data-agent"
+        - name: PORT
+          value: "8080"
+        - name: BIND_ADDRESS
+          value: "127.0.0.1"
+        - name: HTTP_PROXY
+          value: "http://127.0.0.1:8181"
+        - name: MODEL_REGISTRY_URL
+          value: "http://model-registry"
+        - name: ENABLE_AGENT_CARD
+          value: "true"
+        - name: AGENT_SKILLS
+          value: "data-retrieval,feature-extraction"
+        - name: AGENT_CAPABILITIES
+          value: "read:features"
+        - name: AGENT_IDENTITY
+          value: "spiffe://cluster.local/ns/agentic-ml/sa/data-agent"
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1001
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ALL]
+        resources:
+          requests: { memory: "32Mi", cpu: "50m" }
+          limits: { memory: "128Mi", cpu: "200m" }
+      - name: klaviger
+        image: quay.io/gordons/klaviger:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8180
+          name: reverse-proxy
+        - containerPort: 9090
+          name: metrics
+        args: ["--config", "/etc/klaviger/config.yaml"]
+        volumeMounts:
+        - name: config
+          mountPath: /etc/klaviger
+        - name: satoken
+          mountPath: /var/run/secrets/tokens
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1001
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ALL]
+        resources:
+          requests: { memory: "64Mi", cpu: "100m" }
+          limits: { memory: "256Mi", cpu: "500m" }
+      volumes:
+      - name: config
+        configMap:
+          name: klaviger-config-data-agent
+      - name: satoken
+        projected:
+          sources:
+          - serviceAccountToken:
+              path: keycloaktoken
+              expirationSeconds: 600
+              audience: http://keycloak.agentic-ml.svc/realms/demo
+---
+# Training Agent (with Klaviger sidecar)
+apiVersion: v1
+kind: Service
+metadata:
+  name: training-agent
+  namespace: agentic-ml
+  labels:
+    app: ml-agent
+    agent: training-agent
+spec:
+  selector:
+    app: ml-agent
+    agent: training-agent
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8180
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: training-agent
+  namespace: agentic-ml
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ml-agent
+      agent: training-agent
+  template:
+    metadata:
+      labels:
+        app: ml-agent
+        agent: training-agent
+    spec:
+      serviceAccountName: training-agent
+      containers:
+      - name: agent
+        image: demo-ml-agent:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8080
+        env:
+        - name: AGENT_NAME
+          value: "training-agent"
+        - name: PORT
+          value: "8080"
+        - name: BIND_ADDRESS
+          value: "127.0.0.1"
+        - name: HTTP_PROXY
+          value: "http://127.0.0.1:8181"
+        - name: MODEL_REGISTRY_URL
+          value: "http://model-registry"
+        - name: ENABLE_AGENT_CARD
+          value: "true"
+        - name: AGENT_SKILLS
+          value: "model-training,gpu-provisioning"
+        - name: AGENT_CAPABILITIES
+          value: "write:model-registry,provision:gpu"
+        - name: AGENT_IDENTITY
+          value: "spiffe://cluster.local/ns/agentic-ml/sa/training-agent"
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1001
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ALL]
+        resources:
+          requests: { memory: "32Mi", cpu: "50m" }
+          limits: { memory: "128Mi", cpu: "200m" }
+      - name: klaviger
+        image: quay.io/gordons/klaviger:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8180
+          name: reverse-proxy
+        - containerPort: 9090
+          name: metrics
+        args: ["--config", "/etc/klaviger/config.yaml"]
+        volumeMounts:
+        - name: config
+          mountPath: /etc/klaviger
+        - name: satoken
+          mountPath: /var/run/secrets/tokens
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1001
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ALL]
+        resources:
+          requests: { memory: "64Mi", cpu: "100m" }
+          limits: { memory: "256Mi", cpu: "500m" }
+      volumes:
+      - name: config
+        configMap:
+          name: klaviger-config-training-agent
+      - name: satoken
+        projected:
+          sources:
+          - serviceAccountToken:
+              path: keycloaktoken
+              expirationSeconds: 600
+              audience: http://keycloak.agentic-ml.svc/realms/demo
+---
+# Eval Agent (with Klaviger sidecar)
+apiVersion: v1
+kind: Service
+metadata:
+  name: eval-agent
+  namespace: agentic-ml
+  labels:
+    app: ml-agent
+    agent: eval-agent
+spec:
+  selector:
+    app: ml-agent
+    agent: eval-agent
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8180
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: eval-agent
+  namespace: agentic-ml
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ml-agent
+      agent: eval-agent
+  template:
+    metadata:
+      labels:
+        app: ml-agent
+        agent: eval-agent
+    spec:
+      serviceAccountName: eval-agent
+      containers:
+      - name: agent
+        image: demo-ml-agent:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8080
+        env:
+        - name: AGENT_NAME
+          value: "eval-agent"
+        - name: PORT
+          value: "8080"
+        - name: BIND_ADDRESS
+          value: "127.0.0.1"
+        - name: HTTP_PROXY
+          value: "http://127.0.0.1:8181"
+        - name: ENABLE_AGENT_CARD
+          value: "true"
+        - name: AGENT_SKILLS
+          value: "model-evaluation,safety-benchmarks"
+        - name: AGENT_CAPABILITIES
+          value: "read:test-data,write:eval-reports"
+        - name: AGENT_IDENTITY
+          value: "spiffe://cluster.local/ns/agentic-ml/sa/eval-agent"
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1001
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ALL]
+        resources:
+          requests: { memory: "32Mi", cpu: "50m" }
+          limits: { memory: "128Mi", cpu: "200m" }
+      - name: klaviger
+        image: quay.io/gordons/klaviger:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8180
+          name: reverse-proxy
+        - containerPort: 9090
+          name: metrics
+        args: ["--config", "/etc/klaviger/config.yaml"]
+        volumeMounts:
+        - name: config
+          mountPath: /etc/klaviger
+        - name: satoken
+          mountPath: /var/run/secrets/tokens
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1001
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ALL]
+        resources:
+          requests: { memory: "64Mi", cpu: "100m" }
+          limits: { memory: "256Mi", cpu: "500m" }
+      volumes:
+      - name: config
+        configMap:
+          name: klaviger-config-eval-agent
+      - name: satoken
+        projected:
+          sources:
+          - serviceAccountToken:
+              path: keycloaktoken
+              expirationSeconds: 600
+              audience: http://keycloak.agentic-ml.svc/realms/demo
+---
+# Deploy Agent (with Klaviger sidecar)
+apiVersion: v1
+kind: Service
+metadata:
+  name: deploy-agent
+  namespace: agentic-ml
+  labels:
+    app: ml-agent
+    agent: deploy-agent
+spec:
+  selector:
+    app: ml-agent
+    agent: deploy-agent
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8180
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deploy-agent
+  namespace: agentic-ml
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ml-agent
+      agent: deploy-agent
+  template:
+    metadata:
+      labels:
+        app: ml-agent
+        agent: deploy-agent
+    spec:
+      serviceAccountName: deploy-agent
+      containers:
+      - name: agent
+        image: demo-ml-agent:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8080
+        env:
+        - name: AGENT_NAME
+          value: "deploy-agent"
+        - name: PORT
+          value: "8080"
+        - name: BIND_ADDRESS
+          value: "127.0.0.1"
+        - name: HTTP_PROXY
+          value: "http://127.0.0.1:8181"
+        - name: ENABLE_AGENT_CARD
+          value: "true"
+        - name: AGENT_SKILLS
+          value: "deployment,staging-management"
+        - name: AGENT_CAPABILITIES
+          value: "deploy:staging"
+        - name: AGENT_IDENTITY
+          value: "spiffe://cluster.local/ns/agentic-ml/sa/deploy-agent"
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1001
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ALL]
+        resources:
+          requests: { memory: "32Mi", cpu: "50m" }
+          limits: { memory: "128Mi", cpu: "200m" }
+      - name: klaviger
+        image: quay.io/gordons/klaviger:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8180
+          name: reverse-proxy
+        - containerPort: 9090
+          name: metrics
+        args: ["--config", "/etc/klaviger/config.yaml"]
+        volumeMounts:
+        - name: config
+          mountPath: /etc/klaviger
+        - name: satoken
+          mountPath: /var/run/secrets/tokens
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1001
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ALL]
+        resources:
+          requests: { memory: "64Mi", cpu: "100m" }
+          limits: { memory: "256Mi", cpu: "500m" }
+      volumes:
+      - name: config
+        configMap:
+          name: klaviger-config-deploy-agent
+      - name: satoken
+        projected:
+          sources:
+          - serviceAccountToken:
+              path: keycloaktoken
+              expirationSeconds: 600
+              audience: http://keycloak.agentic-ml.svc/realms/demo

@@ -1,0 +1,246 @@
+---
+# Klaviger config for orchestrator
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: klaviger-config-orchestrator
+  namespace: agentic-ml
+data:
+  config.yaml: |
+    server:
+      reverseProxyPort: 8180
+      forwardProxyPort: 8181
+      readTimeout: "30s"
+      writeTimeout: "30s"
+
+    reverseProxy:
+      backend: "http://127.0.0.1:8080"
+      verification:
+        mode: "jwt"
+        jwt:
+          jwksUrl: "http://keycloak.agentic-ml.svc/realms/demo/protocol/openid-connect/certs"
+          issuer: "http://keycloak.agentic-ml.svc/realms/demo"
+          audience: "orchestrator"
+          cacheTtl: "5m"
+
+    forwardProxy:
+      defaultMode:
+        type: "passthrough"
+      hostRules:
+        - hostPattern: "data-agent"
+          mode:
+            type: "oauth"
+            oauth:
+              tokenUrl: "http://keycloak.agentic-ml.svc/realms/demo/protocol/openid-connect/token"
+              # audience: "data-agent"  # requires fine-grained authz in Keycloak
+              scope: "read:features"
+              clientTokenPath: "/var/run/secrets/tokens/keycloaktoken"
+              clientAuthMethod: "assertion"
+              includeActorToken: true
+        - hostPattern: "training-agent"
+          mode:
+            type: "oauth"
+            oauth:
+              tokenUrl: "http://keycloak.agentic-ml.svc/realms/demo/protocol/openid-connect/token"
+              # audience: "training-agent"
+              scope: "write:model-registry provision:gpu"
+              clientTokenPath: "/var/run/secrets/tokens/keycloaktoken"
+              clientAuthMethod: "assertion"
+              includeActorToken: true
+        - hostPattern: "eval-agent"
+          mode:
+            type: "oauth"
+            oauth:
+              tokenUrl: "http://keycloak.agentic-ml.svc/realms/demo/protocol/openid-connect/token"
+              # audience: "eval-agent"
+              scope: "read:test-data write:eval-reports"
+              clientTokenPath: "/var/run/secrets/tokens/keycloaktoken"
+              clientAuthMethod: "assertion"
+              includeActorToken: true
+        - hostPattern: "deploy-agent"
+          mode:
+            type: "oauth"
+            oauth:
+              tokenUrl: "http://keycloak.agentic-ml.svc/realms/demo/protocol/openid-connect/token"
+              # audience: "deploy-agent"
+              scope: "deploy:staging"
+              clientTokenPath: "/var/run/secrets/tokens/keycloaktoken"
+              clientAuthMethod: "assertion"
+              includeActorToken: true
+
+    observability:
+      metrics:
+        enabled: true
+        port: 9090
+        path: "/metrics"
+      tracing:
+        enabled: true
+        endpoint: "jaeger-collector.agentic-ml.svc:4318"
+        serviceName: "orchestrator-klaviger"
+      logging:
+        level: "debug"
+        format: "json"
+---
+# Klaviger config for data-agent
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: klaviger-config-data-agent
+  namespace: agentic-ml
+data:
+  config.yaml: |
+    server:
+      reverseProxyPort: 8180
+      forwardProxyPort: 8181
+      readTimeout: "30s"
+      writeTimeout: "30s"
+
+    reverseProxy:
+      backend: "http://127.0.0.1:8080"
+      verification:
+        mode: "jwt"
+        jwt:
+          jwksUrl: "http://keycloak.agentic-ml.svc/realms/demo/protocol/openid-connect/certs"
+          issuer: "http://keycloak.agentic-ml.svc/realms/demo"
+          audience: "account"
+          cacheTtl: "5m"
+
+    forwardProxy:
+      defaultMode:
+        type: "passthrough"
+
+    observability:
+      metrics:
+        enabled: true
+        port: 9090
+        path: "/metrics"
+      tracing:
+        enabled: true
+        endpoint: "jaeger-collector.agentic-ml.svc:4318"
+        serviceName: "data-agent-klaviger"
+      logging:
+        level: "debug"
+        format: "json"
+---
+# Klaviger config for training-agent
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: klaviger-config-training-agent
+  namespace: agentic-ml
+data:
+  config.yaml: |
+    server:
+      reverseProxyPort: 8180
+      forwardProxyPort: 8181
+      readTimeout: "30s"
+      writeTimeout: "30s"
+
+    reverseProxy:
+      backend: "http://127.0.0.1:8080"
+      verification:
+        mode: "jwt"
+        jwt:
+          jwksUrl: "http://keycloak.agentic-ml.svc/realms/demo/protocol/openid-connect/certs"
+          issuer: "http://keycloak.agentic-ml.svc/realms/demo"
+          audience: "account"
+          cacheTtl: "5m"
+
+    forwardProxy:
+      defaultMode:
+        type: "passthrough"
+
+    observability:
+      metrics:
+        enabled: true
+        port: 9090
+        path: "/metrics"
+      tracing:
+        enabled: true
+        endpoint: "jaeger-collector.agentic-ml.svc:4318"
+        serviceName: "training-agent-klaviger"
+      logging:
+        level: "debug"
+        format: "json"
+---
+# Klaviger config for eval-agent
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: klaviger-config-eval-agent
+  namespace: agentic-ml
+data:
+  config.yaml: |
+    server:
+      reverseProxyPort: 8180
+      forwardProxyPort: 8181
+      readTimeout: "30s"
+      writeTimeout: "30s"
+
+    reverseProxy:
+      backend: "http://127.0.0.1:8080"
+      verification:
+        mode: "jwt"
+        jwt:
+          jwksUrl: "http://keycloak.agentic-ml.svc/realms/demo/protocol/openid-connect/certs"
+          issuer: "http://keycloak.agentic-ml.svc/realms/demo"
+          audience: "account"
+          cacheTtl: "5m"
+
+    forwardProxy:
+      defaultMode:
+        type: "passthrough"
+
+    observability:
+      metrics:
+        enabled: true
+        port: 9090
+        path: "/metrics"
+      tracing:
+        enabled: true
+        endpoint: "jaeger-collector.agentic-ml.svc:4318"
+        serviceName: "eval-agent-klaviger"
+      logging:
+        level: "debug"
+        format: "json"
+---
+# Klaviger config for deploy-agent
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: klaviger-config-deploy-agent
+  namespace: agentic-ml
+data:
+  config.yaml: |
+    server:
+      reverseProxyPort: 8180
+      forwardProxyPort: 8181
+      readTimeout: "30s"
+      writeTimeout: "30s"
+
+    reverseProxy:
+      backend: "http://127.0.0.1:8080"
+      verification:
+        mode: "jwt"
+        jwt:
+          jwksUrl: "http://keycloak.agentic-ml.svc/realms/demo/protocol/openid-connect/certs"
+          issuer: "http://keycloak.agentic-ml.svc/realms/demo"
+          audience: "account"
+          cacheTtl: "5m"
+
+    forwardProxy:
+      defaultMode:
+        type: "passthrough"
+
+    observability:
+      metrics:
+        enabled: true
+        port: 9090
+        path: "/metrics"
+      tracing:
+        enabled: true
+        endpoint: "jaeger-collector.agentic-ml.svc:4318"
+        serviceName: "deploy-agent-klaviger"
+      logging:
+        level: "debug"
+        format: "json"

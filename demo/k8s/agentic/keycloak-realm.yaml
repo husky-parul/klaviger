@@ -1,0 +1,143 @@
+---
+# Keycloak realm configuration for the demo
+# Imported via ConfigMap into Keycloak's /opt/keycloak/data/import
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keycloak-realm-config
+  namespace: agentic-ml
+data:
+  demo-realm.json: |
+    {
+      "realm": "demo",
+      "enabled": true,
+      "sslRequired": "none",
+      "registrationAllowed": false,
+      "roles": {
+        "realm": [
+          { "name": "agent", "description": "Agent role" }
+        ]
+      },
+      "clients": [
+        {
+          "clientId": "orchestrator",
+          "enabled": true,
+          "publicClient": false,
+          "serviceAccountsEnabled": true,
+          "directAccessGrantsEnabled": true,
+          "clientAuthenticatorType": "client-jwt",
+          "attributes": {
+            "token.endpoint.auth.signing.alg": "RS256",
+            "use.jwks.url": "false"
+          },
+          "defaultClientScopes": ["email", "profile"],
+          "optionalClientScopes": ["read:features", "write:model-registry", "provision:gpu", "read:test-data", "write:eval-reports", "deploy:staging"]
+        },
+        {
+          "clientId": "data-agent",
+          "enabled": true,
+          "publicClient": false,
+          "serviceAccountsEnabled": true,
+          "directAccessGrantsEnabled": true,
+          "clientAuthenticatorType": "client-jwt",
+          "attributes": {
+            "token.endpoint.auth.signing.alg": "RS256",
+            "use.jwks.url": "false"
+          },
+          "defaultClientScopes": ["email", "profile"],
+          "optionalClientScopes": ["read:features"]
+        },
+        {
+          "clientId": "training-agent",
+          "enabled": true,
+          "publicClient": false,
+          "serviceAccountsEnabled": true,
+          "directAccessGrantsEnabled": true,
+          "clientAuthenticatorType": "client-jwt",
+          "attributes": {
+            "token.endpoint.auth.signing.alg": "RS256",
+            "use.jwks.url": "false"
+          },
+          "defaultClientScopes": ["email", "profile"],
+          "optionalClientScopes": ["write:model-registry", "provision:gpu"]
+        },
+        {
+          "clientId": "eval-agent",
+          "enabled": true,
+          "publicClient": false,
+          "serviceAccountsEnabled": true,
+          "directAccessGrantsEnabled": true,
+          "clientAuthenticatorType": "client-jwt",
+          "attributes": {
+            "token.endpoint.auth.signing.alg": "RS256",
+            "use.jwks.url": "false"
+          },
+          "defaultClientScopes": ["email", "profile"],
+          "optionalClientScopes": ["read:test-data", "write:eval-reports"]
+        },
+        {
+          "clientId": "deploy-agent",
+          "enabled": true,
+          "publicClient": false,
+          "serviceAccountsEnabled": true,
+          "directAccessGrantsEnabled": true,
+          "clientAuthenticatorType": "client-jwt",
+          "attributes": {
+            "token.endpoint.auth.signing.alg": "RS256",
+            "use.jwks.url": "false"
+          },
+          "defaultClientScopes": ["email", "profile"],
+          "optionalClientScopes": ["deploy:staging"]
+        }
+      ],
+      "clientScopes": [
+        {
+          "name": "read:features",
+          "protocol": "openid-connect",
+          "attributes": {
+            "include.in.token.scope": "true",
+            "display.on.consent.screen": "false"
+          }
+        },
+        {
+          "name": "write:model-registry",
+          "protocol": "openid-connect",
+          "attributes": {
+            "include.in.token.scope": "true",
+            "display.on.consent.screen": "false"
+          }
+        },
+        {
+          "name": "provision:gpu",
+          "protocol": "openid-connect",
+          "attributes": {
+            "include.in.token.scope": "true",
+            "display.on.consent.screen": "false"
+          }
+        },
+        {
+          "name": "read:test-data",
+          "protocol": "openid-connect",
+          "attributes": {
+            "include.in.token.scope": "true",
+            "display.on.consent.screen": "false"
+          }
+        },
+        {
+          "name": "write:eval-reports",
+          "protocol": "openid-connect",
+          "attributes": {
+            "include.in.token.scope": "true",
+            "display.on.consent.screen": "false"
+          }
+        },
+        {
+          "name": "deploy:staging",
+          "protocol": "openid-connect",
+          "attributes": {
+            "include.in.token.scope": "true",
+            "display.on.consent.screen": "false"
+          }
+        }
+      ]
+    }

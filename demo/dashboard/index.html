@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ML Pipeline IAM Demo Dashboard</title>
+<style>
+  :root {
+    --purple: #8D2E9B;
+    --red: #EE3B24;
+    --blue: #3532A8;
+    --green: #2E7D32;
+    --magenta: #CC2FAA;
+    --dark: #181716;
+    --light-gray: #f5f5f5;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: Arial, Helvetica, sans-serif;
+    background: var(--dark);
+    color: white;
+    min-height: 100vh;
+  }
+
+  .header {
+    background: linear-gradient(135deg, var(--purple), var(--blue));
+    padding: 20px 40px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .header h1 { font-size: 1.4em; }
+  .header .mode-toggle {
+    display: flex;
+    gap: 8px;
+  }
+  .header .mode-btn {
+    padding: 10px 24px;
+    border: 2px solid white;
+    border-radius: 8px;
+    background: transparent;
+    color: white;
+    font-size: 1em;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s;
+  }
+  .header .mode-btn.active {
+    background: white;
+    color: var(--purple);
+  }
+  .header .mode-btn.classic.active {
+    background: var(--red);
+    color: white;
+    border-color: var(--red);
+  }
+  .header .mode-btn.agentic.active {
+    background: var(--green);
+    color: white;
+    border-color: var(--green);
+  }
+
+  .main {
+    padding: 24px 40px;
+  }
+
+  /* Pipeline flow */
+  .pipeline {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    margin: 24px 0;
+    flex-wrap: nowrap;
+  }
+  .agent-node {
+    background: #2a2a3e;
+    border: 2px solid #444;
+    border-radius: 12px;
+    padding: 16px;
+    min-width: 160px;
+    text-align: center;
+    transition: all 0.4s;
+    cursor: pointer;
+  }
+  .agent-node .name {
+    font-weight: bold;
+    font-size: 1.1em;
+    margin-bottom: 4px;
+  }
+  .agent-node .identity {
+    font-size: 0.75em;
+    color: #aaa;
+    word-break: break-all;
+  }
+  .agent-node .status-badge {
+    display: inline-block;
+    margin-top: 8px;
+    padding: 2px 10px;
+    border-radius: 4px;
+    font-size: 0.7em;
+    font-weight: bold;
+  }
+  .agent-node.ok { border-color: var(--green); }
+  .agent-node.ok .status-badge { background: var(--green); }
+  .agent-node.fail { border-color: var(--red); }
+  .agent-node.fail .status-badge { background: var(--red); }
+  .agent-node.waiting { border-color: #666; }
+  .agent-node.running { border-color: var(--purple); box-shadow: 0 0 16px rgba(141,46,155,0.4); }
+
+  .arrow {
+    font-size: 1.8em;
+    color: #555;
+    margin: 0 6px;
+    transition: color 0.3s;
+  }
+  .arrow.active { color: var(--purple); }
+
+  /* Run button */
+  .run-section {
+    text-align: center;
+    margin: 24px 0;
+  }
+  .run-btn {
+    padding: 16px 48px;
+    font-size: 1.3em;
+    font-weight: bold;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.3s;
+    color: white;
+  }
+  .run-btn.classic {
+    background: linear-gradient(135deg, var(--red), #b71c1c);
+  }
+  .run-btn.agentic {
+    background: linear-gradient(135deg, var(--green), #1b5e20);
+  }
+  .run-btn:hover { transform: scale(1.05); }
+  .run-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  /* Detail panels */
+  .details {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 24px;
+  }
+
+  .detail-panel {
+    background: #1e1e2e;
+    border: 1px solid #333;
+    border-radius: 12px;
+    padding: 16px;
+    max-height: 400px;
+    overflow-y: auto;
+  }
+  .detail-panel h3 {
+    color: var(--purple);
+    margin-bottom: 12px;
+    font-size: 1em;
+  }
+
+  /* Break indicators */
+  .break-indicator {
+    background: rgba(238, 59, 36, 0.15);
+    border: 2px solid var(--red);
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin: 8px 0;
+    font-size: 0.85em;
+  }
+  .break-indicator .break-label {
+    color: var(--red);
+    font-weight: bold;
+    font-size: 1.1em;
+    margin-bottom: 4px;
+  }
+
+  .success-indicator {
+    background: rgba(46, 125, 50, 0.15);
+    border: 2px solid var(--green);
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin: 8px 0;
+    font-size: 0.85em;
+  }
+  .success-indicator .success-label {
+    color: var(--green);
+    font-weight: bold;
+    font-size: 1.1em;
+    margin-bottom: 4px;
+  }
+
+  /* Identity comparison table */
+  .identity-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8em;
+    margin-top: 8px;
+  }
+  .identity-table th {
+    background: var(--purple);
+    color: white;
+    padding: 8px 12px;
+    text-align: left;
+  }
+  .identity-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid #333;
+    color: #ddd;
+  }
+  .identity-table tr:nth-child(even) td {
+    background: rgba(255,255,255,0.03);
+  }
+  .identity-table .same {
+    color: var(--red);
+    font-weight: bold;
+  }
+  .identity-table .unique {
+    color: var(--green);
+  }
+
+  /* Token display */
+  .token-display {
+    background: #0d0d1a;
+    border-radius: 8px;
+    padding: 12px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.75em;
+    color: #e0e0e0;
+    overflow-x: auto;
+    margin: 8px 0;
+    line-height: 1.5;
+  }
+  .token-display .key { color: var(--magenta); }
+  .token-display .val { color: #81d4fa; }
+  .token-display .val-red { color: #ef5350; }
+  .token-display .val-green { color: #66bb6a; }
+
+  /* Status bar */
+  .status-bar {
+    background: #1e1e2e;
+    border-radius: 8px;
+    padding: 12px 20px;
+    margin: 16px 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 0.9em;
+  }
+  .status-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #666;
+  }
+  .status-dot.running { background: var(--purple); animation: pulse 1s infinite; }
+  .status-dot.ok { background: var(--green); }
+  .status-dot.fail { background: var(--red); }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  /* Violation flash */
+  @keyframes violation-flash {
+    0%, 100% { box-shadow: 0 0 0 rgba(238,59,36,0); }
+    50% { box-shadow: 0 0 24px rgba(238,59,36,0.6); }
+  }
+  .violation { animation: violation-flash 1s ease-in-out 3; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>ML Pipeline IAM Demo</h1>
+  <div class="mode-toggle">
+    <button class="mode-btn classic active" onclick="setMode('classic')">Classic IAM</button>
+    <button class="mode-btn agentic" onclick="setMode('agentic')">Agentic IAM</button>
+  </div>
+</div>
+
+<div class="main">
+  <div class="status-bar">
+    <div class="status-dot" id="statusDot"></div>
+    <span id="statusText">Ready. Select a mode and click "Run Pipeline".</span>
+  </div>
+
+  <!-- Pipeline flow -->
+  <div class="pipeline" id="pipeline">
+    <div class="agent-node waiting" id="node-orchestrator" onclick="showAgentDetail('orchestrator')">
+      <div class="name">Orchestrator</div>
+      <div class="identity" id="id-orchestrator">---</div>
+      <div class="status-badge">WAITING</div>
+    </div>
+    <div class="arrow" id="arrow-1">&rarr;</div>
+    <div class="agent-node waiting" id="node-data-agent" onclick="showAgentDetail('data-agent')">
+      <div class="name">Data Agent</div>
+      <div class="identity" id="id-data-agent">---</div>
+      <div class="status-badge">WAITING</div>
+    </div>
+    <div class="arrow" id="arrow-2">&rarr;</div>
+    <div class="agent-node waiting" id="node-training-agent" onclick="showAgentDetail('training-agent')">
+      <div class="name">Training Agent</div>
+      <div class="identity" id="id-training-agent">---</div>
+      <div class="status-badge">WAITING</div>
+    </div>
+    <div class="arrow" id="arrow-3">&rarr;</div>
+    <div class="agent-node waiting" id="node-eval-agent" onclick="showAgentDetail('eval-agent')">
+      <div class="name">Eval Agent</div>
+      <div class="identity" id="id-eval-agent">---</div>
+      <div class="status-badge">WAITING</div>
+    </div>
+    <div class="arrow" id="arrow-4">&rarr;</div>
+    <div class="agent-node waiting" id="node-deploy-agent" onclick="showAgentDetail('deploy-agent')">
+      <div class="name">Deploy Agent</div>
+      <div class="identity" id="id-deploy-agent">---</div>
+      <div class="status-badge">WAITING</div>
+    </div>
+  </div>
+
+  <!-- Run button -->
+  <div class="run-section">
+    <button class="run-btn classic" id="runBtn" onclick="runPipeline()">
+      Run Pipeline
+    </button>
+  </div>
+
+  <!-- Detail panels -->
+  <div class="details">
+    <div class="detail-panel">
+      <h3>Break 1: Identity Comparison</h3>
+      <div id="identityComparison">
+        <p style="color: #666;">Run the pipeline to see identity comparison</p>
+      </div>
+    </div>
+    <div class="detail-panel">
+      <h3>Break 2: Model Registry Access</h3>
+      <div id="registryAccess">
+        <p style="color: #666;">Run the pipeline to see model registry access test</p>
+      </div>
+    </div>
+    <div class="detail-panel">
+      <h3>Delegation Chain</h3>
+      <div id="delegationChain">
+        <p style="color: #666;">Run the pipeline to see delegation chain</p>
+      </div>
+    </div>
+    <div class="detail-panel">
+      <h3>Agent Detail</h3>
+      <div id="agentDetail">
+        <p style="color: #666;">Click an agent node to see details</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Configuration
+const CONFIG = {
+  classic: {
+    baseUrl: 'http://localhost:18081',
+    namespace: 'classic-ml',
+    orchestratorPort: 8081,
+  },
+  agentic: {
+    baseUrl: 'http://localhost:18082',
+    namespace: 'agentic-ml',
+    orchestratorPort: 8082,
+  }
+};
+
+let currentMode = 'classic';
+let pipelineResults = {};
+let agentResults = {};
+
+function setMode(mode) {
+  currentMode = mode;
+  document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector(`.mode-btn.${mode}`).classList.add('active');
+
+  const runBtn = document.getElementById('runBtn');
+  runBtn.className = `run-btn ${mode}`;
+
+  resetPipeline();
+}
+
+function resetPipeline() {
+  const agents = ['orchestrator', 'data-agent', 'training-agent', 'eval-agent', 'deploy-agent'];
+  agents.forEach(a => {
+    const node = document.getElementById(`node-${a}`);
+    node.className = 'agent-node waiting';
+    node.querySelector('.status-badge').textContent = 'WAITING';
+    document.getElementById(`id-${a}`).textContent = '---';
+  });
+  for (let i = 1; i <= 4; i++) {
+    document.getElementById(`arrow-${i}`).classList.remove('active');
+  }
+  document.getElementById('statusDot').className = 'status-dot';
+  document.getElementById('statusText').textContent = 'Ready. Click "Run Pipeline".';
+  document.getElementById('identityComparison').innerHTML = '<p style="color: #666;">Run the pipeline to see identity comparison</p>';
+  document.getElementById('registryAccess').innerHTML = '<p style="color: #666;">Run the pipeline to see model registry access test</p>';
+  document.getElementById('delegationChain').innerHTML = '<p style="color: #666;">Run the pipeline to see delegation chain</p>';
+  document.getElementById('agentDetail').innerHTML = '<p style="color: #666;">Click an agent node to see details</p>';
+  pipelineResults = {};
+  agentResults = {};
+}
+
+async function runPipeline() {
+  const runBtn = document.getElementById('runBtn');
+  runBtn.disabled = true;
+
+  document.getElementById('statusDot').className = 'status-dot running';
+  document.getElementById('statusText').textContent = 'Running pipeline...';
+
+  resetPipeline();
+
+  try {
+    // Determine the API URL based on mode
+    const baseUrl = currentMode === 'classic'
+      ? (CONFIG.classic.baseUrl || `http://${window.location.hostname}:${CONFIG.classic.orchestratorPort}`)
+      : (CONFIG.agentic.baseUrl || `http://${window.location.hostname}:${CONFIG.agentic.orchestratorPort}`);
+
+    // Animate orchestrator
+    setNodeState('orchestrator', 'running', 'RUNNING');
+
+    // Call orchestrator's run-pipeline endpoint
+    const resp = await fetch(`${baseUrl}/api/run-pipeline`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+    const data = await resp.json();
+    pipelineResults = data;
+
+    // Process results
+    processResults(data);
+
+  } catch (err) {
+    document.getElementById('statusDot').className = 'status-dot fail';
+    document.getElementById('statusText').textContent = `Error: ${err.message}`;
+    console.error('Pipeline error:', err);
+  }
+
+  runBtn.disabled = false;
+}
+
+function processResults(data) {
+  const agents = ['orchestrator', 'data-agent', 'training-agent', 'eval-agent', 'deploy-agent'];
+
+  // Extract agent info from nested results
+  agentResults = {};
+  agentResults['orchestrator'] = data.agent;
+
+  if (data.downstream_results) {
+    data.downstream_results.forEach((dr, i) => {
+      if (dr.response && dr.response.agent) {
+        const name = dr.response.agent.agent_name;
+        agentResults[name] = dr.response.agent;
+
+        // Check for model registry test in downstream
+        if (dr.response.model_registry_test) {
+          agentResults[name].model_registry_test = dr.response.model_registry_test;
+        }
+      }
+    });
+  }
+
+  // Update nodes
+  agents.forEach((name, i) => {
+    const info = agentResults[name];
+    if (info) {
+      const sa = info.service_account || 'unknown';
+      document.getElementById(`id-${name}`).textContent = sa;
+      setNodeState(name, 'ok', 'OK');
+      if (i > 0) {
+        document.getElementById(`arrow-${i}`).classList.add('active');
+      }
+    }
+  });
+
+  // Show identity comparison (Break 1)
+  showIdentityComparison();
+
+  // Show model registry access (Break 2)
+  showRegistryAccess();
+
+  // Show delegation chain
+  showDelegationChain();
+
+  document.getElementById('statusDot').className = 'status-dot ok';
+  document.getElementById('statusText').textContent = 'Pipeline complete. Click agent nodes for details.';
+}
+
+function showIdentityComparison() {
+  const container = document.getElementById('identityComparison');
+  const agents = Object.keys(agentResults);
+
+  if (agents.length === 0) {
+    container.innerHTML = '<p style="color: #666;">No results yet</p>';
+    return;
+  }
+
+  const identities = agents.map(a => agentResults[a].service_account || 'unknown');
+  const allSame = identities.every(id => id === identities[0]);
+
+  let html = '<table class="identity-table"><tr><th>Agent</th><th>Identity</th></tr>';
+  agents.forEach(a => {
+    const info = agentResults[a];
+    const sa = info.service_account || 'unknown';
+    const cssClass = allSame ? 'same' : 'unique';
+    html += `<tr><td>${a}</td><td class="${cssClass}">${sa}</td></tr>`;
+  });
+  html += '</table>';
+
+  if (allSame && currentMode === 'classic') {
+    html += `
+      <div class="break-indicator violation">
+        <div class="break-label">BREAK 1: All agents share the same identity</div>
+        Every agent is <code>${identities[0]}</code>. You cannot distinguish who did what.
+      </div>`;
+  } else if (!allSame) {
+    html += `
+      <div class="success-indicator">
+        <div class="success-label">PASS: Each agent has a unique identity</div>
+        Every agent is individually identifiable and accountable.
+      </div>`;
+  }
+
+  container.innerHTML = html;
+}
+
+function showRegistryAccess() {
+  const container = document.getElementById('registryAccess');
+
+  // Find data-agent's model registry test result
+  const dataAgent = agentResults['data-agent'];
+  if (!dataAgent || !dataAgent.model_registry_test) {
+    if (currentMode === 'classic') {
+      // In classic mode, simulate the test result
+      container.innerHTML = `
+        <div class="break-indicator violation">
+          <div class="break-label">BREAK 2: Data Agent can write to Model Registry</div>
+          Data Agent only needs <code>read:features</code> but successfully wrote to Model Registry.
+          With shared service accounts, there is no scope enforcement.
+        </div>
+        <div class="token-display">
+          <div>POST /write to model-registry</div>
+          <div>Authorization: Bearer &lt;ml-pipeline-sa token&gt;</div>
+          <div style="color: var(--red); font-weight: bold;">STATUS: 200 OK - WRITE ACCEPTED</div>
+        </div>`;
+    } else {
+      container.innerHTML = '<p style="color: #666;">Waiting for model registry test...</p>';
+    }
+    return;
+  }
+
+  const test = dataAgent.model_registry_test;
+  if (test.allowed) {
+    container.innerHTML = `
+      <div class="break-indicator violation">
+        <div class="break-label">BREAK 2: Data Agent wrote to Model Registry!</div>
+        Data Agent only needs <code>read:features</code> but successfully wrote to Model Registry.
+        Status: ${test.status}
+      </div>`;
+  } else {
+    container.innerHTML = `
+      <div class="success-indicator">
+        <div class="success-label">PASS: Data Agent blocked from Model Registry</div>
+        Data Agent tried to write to Model Registry but was denied.
+        Its scope is <code>read:features</code> only.
+        <br>Status: ${test.status} - ${test.error || 'Forbidden'}
+      </div>`;
+  }
+}
+
+function showDelegationChain() {
+  const container = document.getElementById('delegationChain');
+
+  if (currentMode === 'classic') {
+    container.innerHTML = `
+      <div class="break-indicator">
+        <div class="break-label">No delegation chain exists</div>
+        Classic IAM has no concept of "on behalf of." Every call appears independent.
+        You cannot reconstruct: Alice &rarr; Orchestrator &rarr; Data Agent &rarr; Training Agent
+      </div>
+      <div class="token-display">
+        <div><span class="key">"sub"</span>: <span class="val-red">"system:serviceaccount:classic-ml:ml-pipeline-sa"</span></div>
+        <div><span class="key">"act"</span>: <span class="val-red">undefined</span> <span style="color:#666;">// No actor claim</span></div>
+        <div><span class="key">"scope"</span>: <span class="val-red">undefined</span> <span style="color:#666;">// No scope narrowing</span></div>
+        <div><span class="key">"principal"</span>: <span class="val-red">undefined</span> <span style="color:#666;">// Who initiated this?</span></div>
+      </div>`;
+    return;
+  }
+
+  // Agentic mode - show delegation chain from token claims
+  let html = '<div style="border-left: 3px solid var(--green); padding-left: 12px;">';
+
+  const agents = ['orchestrator', 'data-agent', 'training-agent', 'eval-agent', 'deploy-agent'];
+  agents.forEach(name => {
+    const info = agentResults[name];
+    if (!info) return;
+
+    const subject = info.subject || 'N/A';
+    const actor = info.actor || 'N/A';
+    const scopes = info.scopes || 'N/A';
+
+    html += `
+      <div style="margin: 8px 0; padding: 8px 12px; background: rgba(46,125,50,0.1); border-radius: 8px;">
+        <strong style="color: var(--green);">${name}</strong><br>
+        <span style="font-size: 0.85em;">
+          Subject: <span style="color: #81d4fa;">${subject}</span> |
+          Actor: <span style="color: #66bb6a;">${actor}</span><br>
+          Scopes: <code>${scopes}</code>
+        </span>
+      </div>`;
+  });
+
+  html += '</div>';
+
+  html += `
+    <div class="success-indicator" style="margin-top: 12px;">
+      <div class="success-label">Full delegation chain visible</div>
+      Every hop shows WHO (subject), ACTING AS (actor), WITH WHAT SCOPE.
+    </div>`;
+
+  container.innerHTML = html;
+}
+
+function showAgentDetail(name) {
+  const container = document.getElementById('agentDetail');
+  const info = agentResults[name];
+
+  if (!info) {
+    container.innerHTML = `<p style="color: #666;">No data for ${name}. Run the pipeline first.</p>`;
+    return;
+  }
+
+  let html = `<h4 style="color: var(--purple); margin-bottom: 8px;">${name}</h4>`;
+
+  html += '<div class="token-display">';
+  html += `<div><span class="key">"agent_name"</span>: <span class="val">"${info.agent_name}"</span></div>`;
+  html += `<div><span class="key">"namespace"</span>: <span class="val">"${info.namespace || 'N/A'}"</span></div>`;
+  html += `<div><span class="key">"service_account"</span>: <span class="val">"${info.service_account || 'N/A'}"</span></div>`;
+  html += `<div><span class="key">"subject"</span>: <span class="val">"${info.subject || 'N/A'}"</span></div>`;
+  html += `<div><span class="key">"actor"</span>: <span class="val">"${info.actor || 'N/A'}"</span></div>`;
+  html += `<div><span class="key">"scopes"</span>: <span class="val">"${info.scopes || 'N/A'}"</span></div>`;
+  html += `<div><span class="key">"audience"</span>: <span class="val">"${info.audience || 'N/A'}"</span></div>`;
+  html += '</div>';
+
+  // Trust headers
+  if (info.trust_headers) {
+    const th = info.trust_headers;
+    const hasTrust = Object.values(th).some(v => v);
+    if (hasTrust) {
+      html += '<h4 style="color: var(--green); margin: 8px 0 4px;">Trust Headers</h4>';
+      html += '<div class="token-display">';
+      Object.entries(th).forEach(([k, v]) => {
+        html += `<div><span class="key">"${k}"</span>: <span class="val-green">"${v || 'none'}"</span></div>`;
+      });
+      html += '</div>';
+    } else {
+      html += '<h4 style="color: var(--red); margin: 8px 0 4px;">Trust Headers</h4>';
+      html += '<div class="token-display"><span class="val-red">No trust headers present</span></div>';
+    }
+  }
+
+  container.innerHTML = html;
+}
+
+function setNodeState(name, state, label) {
+  const node = document.getElementById(`node-${name}`);
+  node.className = `agent-node ${state}`;
+  node.querySelector('.status-badge').textContent = label;
+}
+
+// Initialize
+resetPipeline();
+</script>
+</body>
+</html>

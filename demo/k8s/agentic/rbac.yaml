@@ -1,0 +1,54 @@
+---
+# Individual ServiceAccounts for each agent (agentic IAM pattern)
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: orchestrator
+  namespace: agentic-ml
+  labels:
+    demo: agentic-iam
+    agent: orchestrator
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: data-agent
+  namespace: agentic-ml
+  labels:
+    demo: agentic-iam
+    agent: data-agent
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: training-agent
+  namespace: agentic-ml
+  labels:
+    demo: agentic-iam
+    agent: training-agent
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: eval-agent
+  namespace: agentic-ml
+  labels:
+    demo: agentic-iam
+    agent: eval-agent
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: deploy-agent
+  namespace: agentic-ml
+  labels:
+    demo: agentic-iam
+    agent: deploy-agent
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: model-registry
+  namespace: agentic-ml
+  labels:
+    demo: agentic-iam
