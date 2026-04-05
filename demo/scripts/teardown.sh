@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Ensure kind can find podman-based clusters
+if command -v podman >/dev/null 2>&1; then
+  export KIND_EXPERIMENTAL_PROVIDER=podman
+fi
+
 CLUSTER_NAME="${CLUSTER_NAME:-agentic-demo}"
 
 echo "=== Tearing down demo environment ==="

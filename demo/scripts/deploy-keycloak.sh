@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Ensure kind can find podman-based clusters
+if command -v podman >/dev/null 2>&1; then
+  export KIND_EXPERIMENTAL_PROVIDER=podman
+fi
+
 NAMESPACE="${1:-agentic-ml}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
@@ -20,15 +25,18 @@ if [ -d "$SPI_DIR" ]; then
   # Load into Kind cluster if running locally
   if command -v kind >/dev/null 2>&1; then
     echo "Loading Keycloak image into Kind cluster..."
+    NODE="agentic-demo-control-plane"
     if [ "$CONTAINER_TOOL" = "podman" ]; then
-      $CONTAINER_TOOL save "$KEYCLOAK_IMAGE" -o /tmp/keycloak-spi.tar 2>/dev/null
-      kind load image-archive /tmp/keycloak-spi.tar --name agentic-demo 2>/dev/null
       rm -f /tmp/keycloak-spi.tar
-      # Tag inside the Kind node for K8s to find
-      $CONTAINER_TOOL exec agentic-demo-control-plane ctr -n k8s.io images tag \
+      $CONTAINER_TOOL save "$KEYCLOAK_IMAGE" -o /tmp/keycloak-spi.tar
+      # Load directly into Kind node's containerd (kind load hangs with some podman versions)
+      $CONTAINER_TOOL exec -i "${NODE}" ctr -n k8s.io images import - < /tmp/keycloak-spi.tar
+      rm -f /tmp/keycloak-spi.tar
+      # Tag so imagePullPolicy: Never can find it
+      $CONTAINER_TOOL exec "${NODE}" ctr -n k8s.io images tag \
         "localhost/${KEYCLOAK_IMAGE}" "docker.io/library/${KEYCLOAK_IMAGE}" 2>/dev/null || true
     else
-      kind load docker-image "$KEYCLOAK_IMAGE" --name agentic-demo 2>/dev/null
+      kind load docker-image "$KEYCLOAK_IMAGE" --name agentic-demo
     fi
   fi
 fi

@@ -54,8 +54,10 @@ if [ "${CTR}" = "podman" ]; then
   NODE="${CLUSTER_NAME}-control-plane"
   for img in demo-ml-agent demo-model-registry klaviger; do
     echo "Saving and loading ${img}..."
+    rm -f "/tmp/${img}.tar"
     ${CTR} save "${img}:latest" -o "/tmp/${img}.tar"
-    kind load image-archive "/tmp/${img}.tar" --name "${CLUSTER_NAME}"
+    # Load directly into Kind node's containerd (kind load hangs with some podman versions)
+    ${CTR} exec -i "${NODE}" ctr -n k8s.io images import - < "/tmp/${img}.tar"
     rm -f "/tmp/${img}.tar"
     # Podman loads as localhost/<name>; K8s manifests expect <name> — add docker.io alias
     ${CTR} exec "${NODE}" ctr -n k8s.io images tag "localhost/${img}:latest" "docker.io/library/${img}:latest" 2>/dev/null || true
