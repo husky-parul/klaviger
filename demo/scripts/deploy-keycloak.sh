@@ -144,16 +144,16 @@ kubectl -n agentic-ml wait --for=condition=ready pod -l app=keycloak --timeout=1
 
 # Check if demo realm already exists (persistent storage)
 KC_POD=$(kubectl -n agentic-ml get pods -l app=keycloak -o jsonpath='{.items[0].metadata.name}')
-REALM_EXISTS=$(kubectl -n agentic-ml exec "$KC_POD" -- /opt/keycloak/bin/kcadm.sh config credentials --server http://localhost:8080 --realm master --user admin --password admin 2>&1 && \
-  kubectl -n agentic-ml exec "$KC_POD" -- /opt/keycloak/bin/kcadm.sh get realms/demo 2>&1 | grep -c '"realm"' || echo "0")
+kubectl -n agentic-ml exec "$KC_POD" -- /opt/keycloak/bin/kcadm.sh config credentials \
+  --server http://localhost:8080 --realm master --user admin --password admin 2>/dev/null
 
-if [ "$REALM_EXISTS" = "0" ]; then
+if kubectl -n agentic-ml exec "$KC_POD" -- /opt/keycloak/bin/kcadm.sh get realms/demo 2>/dev/null | grep -q '"realm"'; then
+  echo ""
+  echo "Demo realm already exists (persistent storage). Skipping configuration."
+else
   echo ""
   echo "Configuring Keycloak realm and clients..."
   "${SCRIPT_DIR}/configure-keycloak.sh"
-else
-  echo ""
-  echo "Demo realm already exists (persistent storage). Skipping configuration."
 fi
 
 echo ""

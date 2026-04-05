@@ -972,12 +972,21 @@ function showRegistryAccess(mode, writeTests) {
   agents.forEach(agentName => {
     const test = writeTests[agentName];
     if (test.allowed) {
-      html += `
-        <div class="break-indicator violation">
-          <div class="break-label">${mode === 'classic' ? 'BREAK 2: ' : ''}${formatName(agentName)} wrote to Model Registry!</div>
-          ${formatName(agentName)} ${mode === 'classic' ? 'has no scope enforcement — shared identity grants full access.' : 'has write:model-registry scope.'}
-          <br>Status: ${test.status}
-        </div>`;
+      if (mode === 'classic') {
+        html += `
+          <div class="break-indicator violation">
+            <div class="break-label">BREAK 2: ${formatName(agentName)} wrote to Model Registry!</div>
+            ${formatName(agentName)} has no scope enforcement — shared identity grants full access.
+            <br>Status: ${test.status}
+          </div>`;
+      } else {
+        html += `
+          <div class="success-indicator">
+            <div class="success-label">${formatName(agentName)} wrote to Model Registry</div>
+            ${formatName(agentName)} has write:model-registry scope — access granted as expected.
+            <br>Status: ${test.status}
+          </div>`;
+      }
     } else {
       html += `
         <div class="success-indicator">

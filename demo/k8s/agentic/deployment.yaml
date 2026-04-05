@@ -80,7 +80,7 @@ spec:
       volumes:
       - name: config
         configMap:
-          name: klaviger-config-data-agent
+          name: klaviger-config-model-registry
 ---
 # Orchestrator Agent (with Klaviger sidecar)
 apiVersion: v1
