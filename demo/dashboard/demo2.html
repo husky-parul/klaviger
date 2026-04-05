@@ -581,14 +581,13 @@
         <div class="pipeline-builder empty" id="pipelineBuilder"></div>
       </div>
 
-      <!-- Mode toggle + run -->
+      <!-- Run buttons -->
       <div class="run-controls">
-        <div style="display:flex;gap:8px;">
-          <button class="run-btn classic" id="modeClassicBtn" onclick="setMode('classic')" style="padding:10px 24px;font-size:0.95em;">Classic IAM</button>
-          <button class="run-btn agentic" id="modeAgenticBtn" onclick="setMode('agentic')" style="padding:10px 24px;font-size:0.95em;opacity:0.5;">Agentic IAM</button>
-        </div>
-        <button class="run-btn classic" id="runBtn" onclick="runPipeline(currentMode)" disabled>
-          Run Pipeline
+        <button class="run-btn classic" id="runClassicBtn" onclick="runPipeline('classic')" disabled>
+          Run Classic IAM
+        </button>
+        <button class="run-btn agentic" id="runAgenticBtn" onclick="runPipeline('agentic')" disabled>
+          Run Agentic IAM
         </button>
       </div>
 
@@ -752,7 +751,8 @@ function renderPipeline() {
 
   const hasSteps = pipeline.length > 0;
   el.classList.toggle('empty', !hasSteps);
-  document.getElementById('runBtn').disabled = !hasSteps;
+  document.getElementById('runClassicBtn').disabled = !hasSteps;
+  document.getElementById('runAgenticBtn').disabled = !hasSteps;
 
   pipeline.forEach((step, i) => {
     if (i > 0) {
@@ -799,36 +799,12 @@ function formatName(name) {
   return name.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 }
 
-// ==================== MODE TOGGLE ====================
-function setMode(mode) {
-  currentMode = mode;
-  const runBtn = document.getElementById('runBtn');
-  runBtn.className = `run-btn ${mode}`;
-
-  document.getElementById('modeClassicBtn').style.opacity = mode === 'classic' ? '1' : '0.5';
-  document.getElementById('modeAgenticBtn').style.opacity = mode === 'agentic' ? '1' : '0.5';
-
-  // Reset results
-  document.getElementById('identityComparison').innerHTML = '<p style="color:white;">Run the pipeline to see identity comparison</p>';
-  document.getElementById('registryAccess').innerHTML = '<p style="color:white;">Run the pipeline to see model registry access test</p>';
-  document.getElementById('delegationChain').innerHTML = '<p style="color:white;">Run the pipeline to see delegation chain</p>';
-  document.getElementById('agentDetail').innerHTML = '<p style="color:white;">Click an agent node above to see details</p>';
-  agentResults = {};
-
-  // Reset pipeline step indicators
-  pipeline.forEach((_, i) => {
-    const stepEl = document.getElementById(`status-${i}`)?.closest('.pipeline-step');
-    if (stepEl) stepEl.className = stepEl.className.replace(/ (ok|fail|running)/g, '');
-    const statusEl = document.getElementById(`status-${i}`);
-    if (statusEl) statusEl.textContent = '';
-  });
-}
-
 // ==================== RUN PIPELINE ====================
 async function runPipeline(mode) {
+  currentMode = mode;
   const baseUrl = mode === 'classic' ? CLASSIC_URL : AGENTIC_URL;
-  const btn = document.getElementById('runBtn');
-  btn.disabled = true;
+  document.getElementById('runClassicBtn').disabled = true;
+  document.getElementById('runAgenticBtn').disabled = true;
 
   document.getElementById('resultsGrid').style.display = 'grid';
 
@@ -870,7 +846,8 @@ async function runPipeline(mode) {
     });
   }
 
-  btn.disabled = false;
+  document.getElementById('runClassicBtn').disabled = false;
+  document.getElementById('runAgenticBtn').disabled = false;
 }
 
 function processResults(mode, data) {
@@ -987,11 +964,7 @@ function showRegistryAccess(mode, writeTests) {
   const agents = Object.keys(writeTests);
 
   if (agents.length === 0) {
-    if (mode === 'classic') {
-      container.innerHTML = '<p style="color:white;">No model registry write test in this pipeline. Drag "Write Model Registry" after an agent.</p>';
-    } else {
-      container.innerHTML = '<p style="color:white;">No model registry write test in this pipeline. Drag "Write Model Registry" after an agent.</p>';
-    }
+    container.innerHTML = '<p style="color:#666;">No write actions in this pipeline</p>';
     return;
   }
 
