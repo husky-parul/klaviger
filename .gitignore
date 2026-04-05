@@ -22,7 +22,6 @@ Thumbs.db
 
 # Secrets and credentials (never commit)
 .claude/
-!.claude/skills/outcomes/
 .config/
 .cache/
 .env
