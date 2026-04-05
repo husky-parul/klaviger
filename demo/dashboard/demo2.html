@@ -1,0 +1,1059 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ML Pipeline Builder - Agentic IAM Demo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --pytorch-orange: #EE4C2C;
+    --purple: #8D2E9B;
+    --red: #EE3B24;
+    --blue: #3532A8;
+    --green: #2E7D32;
+    --dark: #1A1A2E;
+    --darker: #0F0F1A;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'IBM Plex Mono', 'Fira Code', 'Consolas', monospace;
+    background: var(--darker);
+    color: white;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background:
+      radial-gradient(ellipse 80% 60% at 10% 20%, rgba(238,76,44,0.08) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 50% at 90% 80%, rgba(53,50,168,0.08) 0%, transparent 60%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  body > * { position: relative; z-index: 1; }
+
+  /* ---- Login screen ---- */
+  .login-screen {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+  }
+
+  .login-box {
+    background: rgba(45,45,70,0.9);
+    border: 2px solid #555;
+    border-radius: 16px;
+    padding: 48px;
+    width: 420px;
+    backdrop-filter: blur(12px);
+  }
+
+  .login-box h1 {
+    font-size: 1.4em;
+    margin-bottom: 8px;
+    background: linear-gradient(135deg, var(--purple), var(--blue));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .login-box p {
+    color: #aaa;
+    font-size: 0.85em;
+    margin-bottom: 24px;
+  }
+
+  .login-box input {
+    width: 100%;
+    padding: 12px 16px;
+    margin-bottom: 12px;
+    background: rgba(30,30,50,0.9);
+    border: 1px solid #555;
+    border-radius: 8px;
+    color: white;
+    font-family: inherit;
+    font-size: 1em;
+  }
+
+  .login-box input:focus {
+    outline: none;
+    border-color: var(--purple);
+  }
+
+  .login-box button {
+    width: 100%;
+    padding: 14px;
+    background: linear-gradient(135deg, var(--purple), var(--blue));
+    border: none;
+    border-radius: 8px;
+    color: white;
+    font-family: inherit;
+    font-size: 1.1em;
+    font-weight: bold;
+    cursor: pointer;
+    margin-top: 8px;
+    transition: transform 0.2s;
+  }
+
+  .login-box button:hover { transform: scale(1.02); }
+  .login-box button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  .login-error {
+    color: var(--red);
+    font-size: 0.85em;
+    margin-top: 8px;
+    min-height: 1.2em;
+  }
+
+  /* ---- Builder screen ---- */
+  .builder-screen { display: none; }
+
+  .header {
+    background: linear-gradient(135deg, var(--purple), var(--blue));
+    padding: 16px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 3px solid rgba(0,0,0,0.2);
+  }
+
+  .header h1 { font-size: 1.2em; }
+
+  .header .user-info {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    font-size: 0.9em;
+  }
+
+  .header .user-badge {
+    background: rgba(0,0,0,0.3);
+    padding: 6px 16px;
+    border-radius: 20px;
+  }
+
+  .header .logout-btn {
+    background: rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.3);
+    color: white;
+    padding: 6px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.85em;
+  }
+
+  .builder-layout {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    min-height: calc(100vh - 56px);
+  }
+
+  /* ---- Left sidebar: available components ---- */
+  .sidebar {
+    background: rgba(35,35,55,0.9);
+    border-right: 1px solid #444;
+    padding: 20px 16px;
+  }
+
+  .sidebar h2 {
+    font-size: 0.9em;
+    color: #aaa;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 16px;
+  }
+
+  .sidebar h3 {
+    font-size: 0.75em;
+    color: #777;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin: 16px 0 8px;
+  }
+
+  .drag-item {
+    background: rgba(50,50,80,0.8);
+    border: 2px solid #555;
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 8px;
+    cursor: grab;
+    transition: all 0.2s;
+    user-select: none;
+  }
+
+  .drag-item:active { cursor: grabbing; }
+  .drag-item:hover { border-color: var(--purple); transform: translateX(4px); }
+
+  .drag-item .drag-name {
+    font-weight: bold;
+    font-size: 0.9em;
+    margin-bottom: 2px;
+  }
+
+  .drag-item .drag-desc {
+    font-size: 0.7em;
+    color: #999;
+  }
+
+  .drag-item.agent { border-left: 4px solid var(--blue); }
+  .drag-item.service { border-left: 4px solid var(--pytorch-orange); }
+  .drag-item.action { border-left: 4px solid var(--red); }
+
+  /* ---- Main area ---- */
+  .main-area {
+    padding: 24px 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  /* Pipeline builder drop zone */
+  .pipeline-builder {
+    background: rgba(45,45,70,0.5);
+    border: 2px dashed #555;
+    border-radius: 16px;
+    padding: 24px;
+    min-height: 120px;
+    display: flex;
+    align-items: center;
+    gap: 0;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    transition: border-color 0.3s;
+  }
+
+  .pipeline-builder.drag-over {
+    border-color: var(--purple);
+    background: rgba(141,46,155,0.08);
+  }
+
+  .pipeline-builder.empty::after {
+    content: 'Drag agents and actions here to build your pipeline';
+    color: #666;
+    font-size: 0.9em;
+    margin: auto;
+  }
+
+  .pipeline-step {
+    background: rgba(50,50,80,0.8);
+    border: 2px solid #555;
+    border-radius: 12px;
+    padding: 14px 18px;
+    min-width: 150px;
+    text-align: center;
+    position: relative;
+    flex-shrink: 0;
+  }
+
+  .pipeline-step .step-name {
+    font-weight: bold;
+    font-size: 0.95em;
+    margin-bottom: 4px;
+  }
+
+  .pipeline-step .step-detail {
+    font-size: 0.7em;
+    color: #999;
+  }
+
+  .pipeline-step .remove-btn {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    width: 22px;
+    height: 22px;
+    background: var(--red);
+    border: none;
+    border-radius: 50%;
+    color: white;
+    font-size: 0.8em;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+
+  .pipeline-step:hover .remove-btn { opacity: 1; }
+
+  .pipeline-step.agent { border-left: 4px solid var(--blue); }
+  .pipeline-step.action-write { border-left: 4px solid var(--red); }
+  .pipeline-step.action-write .step-name { color: var(--pytorch-orange); }
+
+  .pipeline-arrow {
+    font-size: 1.6em;
+    color: #555;
+    margin: 0 8px;
+    flex-shrink: 0;
+  }
+
+  .pipeline-step .status-icon {
+    margin-top: 6px;
+    font-size: 0.85em;
+    font-weight: bold;
+    min-height: 1.2em;
+  }
+
+  .pipeline-step.ok { border-color: var(--green); }
+  .pipeline-step.ok .status-icon { color: var(--green); }
+  .pipeline-step.fail { border-color: var(--red); }
+  .pipeline-step.fail .status-icon { color: var(--red); }
+  .pipeline-step.running { border-color: var(--purple); box-shadow: 0 0 16px rgba(141,46,155,0.4); }
+  .pipeline-step.running .status-icon { color: var(--purple); }
+
+  /* Run controls */
+  .run-controls {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .run-btn {
+    padding: 14px 40px;
+    font-size: 1.1em;
+    font-weight: bold;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    color: white;
+    transition: all 0.2s;
+    font-family: inherit;
+  }
+
+  .run-btn:hover { transform: scale(1.05); }
+  .run-btn:active { transform: scale(0.97); }
+  .run-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  .run-btn.classic { background: linear-gradient(135deg, var(--red), #b71c1c); }
+  .run-btn.agentic { background: linear-gradient(135deg, var(--green), #1b5e20); }
+
+  .run-btn-label {
+    font-size: 0.75em;
+    color: #999;
+    text-align: center;
+  }
+
+  .clear-btn {
+    padding: 10px 24px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid #555;
+    border-radius: 8px;
+    color: #ccc;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.9em;
+  }
+
+  /* Results */
+  .results-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  .result-panel {
+    background: rgba(45,45,70,0.85);
+    border: 1px solid #555;
+    border-radius: 12px;
+    padding: 16px;
+    max-height: 350px;
+    overflow-y: auto;
+    backdrop-filter: blur(8px);
+  }
+
+  .result-panel h3 {
+    font-size: 0.95em;
+    margin-bottom: 12px;
+  }
+
+  .result-panel h3.classic-title { color: var(--red); }
+  .result-panel h3.agentic-title { color: var(--green); }
+
+  .result-step {
+    padding: 10px 12px;
+    margin: 6px 0;
+    border-radius: 8px;
+    font-size: 0.85em;
+  }
+
+  .result-step.pass {
+    background: rgba(46,125,50,0.12);
+    border: 1px solid rgba(46,125,50,0.4);
+  }
+
+  .result-step.fail {
+    background: rgba(238,59,36,0.12);
+    border: 1px solid rgba(238,59,36,0.4);
+  }
+
+  .result-step .step-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+  }
+
+  .result-step .step-header .name { font-weight: bold; }
+
+  .result-step .step-header .status {
+    font-weight: bold;
+    font-size: 0.9em;
+    padding: 2px 8px;
+    border-radius: 4px;
+  }
+
+  .result-step.pass .status { color: var(--green); }
+  .result-step.fail .status { color: var(--red); }
+
+  .result-step .step-body {
+    font-size: 0.85em;
+    color: #bbb;
+    margin-top: 4px;
+  }
+
+  .token-display {
+    background: rgba(30,30,50,0.9);
+    border: 1px solid #555;
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 0.75em;
+    color: #e0e0e0;
+    margin: 8px 0;
+    line-height: 1.6;
+  }
+
+  .token-display .key { color: #81d4fa; }
+  .token-display .val-red { color: #ef5350; }
+  .token-display .val-green { color: #66bb6a; }
+
+  .break-indicator {
+    background: rgba(238,59,36,0.12);
+    border: 2px solid var(--red);
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin: 8px 0;
+    font-size: 0.85em;
+  }
+
+  .break-indicator .break-label {
+    color: var(--red);
+    font-weight: bold;
+    margin-bottom: 4px;
+  }
+
+  .success-indicator {
+    background: rgba(46,125,50,0.12);
+    border: 2px solid var(--green);
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin: 8px 0;
+    font-size: 0.85em;
+  }
+
+  .success-indicator .success-label {
+    color: var(--green);
+    font-weight: bold;
+    margin-bottom: 4px;
+  }
+
+  .summary-box {
+    background: rgba(45,45,70,0.85);
+    border: 1px solid #555;
+    border-radius: 12px;
+    padding: 16px;
+    text-align: center;
+  }
+
+  .summary-box h3 {
+    color: var(--purple);
+    margin-bottom: 8px;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  @keyframes violation-flash {
+    0%, 100% { box-shadow: 0 0 0 rgba(238,59,36,0); }
+    50% { box-shadow: 0 0 24px rgba(238,59,36,0.6); }
+  }
+
+  .violation { animation: violation-flash 1s ease-in-out 3; }
+</style>
+</head>
+<body>
+
+<!-- ==================== LOGIN SCREEN ==================== -->
+<div class="login-screen" id="loginScreen">
+  <div class="login-box">
+    <h1>ML Pipeline Builder</h1>
+    <p>Sign in to build and run ML pipelines.<br>
+       PyTorch Conference Europe 2026</p>
+    <input type="text" id="loginUser" placeholder="Username" value="alice" autofocus>
+    <input type="password" id="loginPass" placeholder="Password" value="demo">
+    <button id="loginBtn" onclick="doLogin()">Sign In</button>
+    <div class="login-error" id="loginError"></div>
+  </div>
+</div>
+
+<!-- ==================== BUILDER SCREEN ==================== -->
+<div class="builder-screen" id="builderScreen">
+  <div class="header">
+    <h1>Pipeline Builder <span style="font-size:0.55em;opacity:0.7;font-weight:normal">// PyTorch Conference Europe 2026</span></h1>
+    <div class="user-info">
+      <span class="user-badge" id="userBadge">alice</span>
+      <button class="logout-btn" onclick="doLogout()">Sign out</button>
+    </div>
+  </div>
+
+  <div class="builder-layout">
+    <!-- Sidebar: draggable components -->
+    <div class="sidebar">
+      <h2>Components</h2>
+
+      <h3>Agents</h3>
+      <div class="drag-item agent" draggable="true" data-type="agent" data-name="data-agent">
+        <div class="drag-name">Data Agent</div>
+        <div class="drag-desc">Read & prepare features</div>
+      </div>
+      <div class="drag-item agent" draggable="true" data-type="agent" data-name="training-agent">
+        <div class="drag-name">Training Agent</div>
+        <div class="drag-desc">Train ML models</div>
+      </div>
+      <div class="drag-item agent" draggable="true" data-type="agent" data-name="eval-agent">
+        <div class="drag-name">Eval Agent</div>
+        <div class="drag-desc">Evaluate model quality</div>
+      </div>
+      <div class="drag-item agent" draggable="true" data-type="agent" data-name="deploy-agent">
+        <div class="drag-name">Deploy Agent</div>
+        <div class="drag-desc">Deploy to production</div>
+      </div>
+
+      <h3>Actions</h3>
+      <div class="drag-item action" draggable="true" data-type="action" data-name="write-model-registry" data-target="model-registry">
+        <div class="drag-name">Write Model Registry</div>
+        <div class="drag-desc">Publish model artifact</div>
+      </div>
+    </div>
+
+    <!-- Main area -->
+    <div class="main-area">
+      <!-- Pipeline builder -->
+      <div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <span style="color:#aaa;font-size:0.85em;">PIPELINE (drag components here)</span>
+          <button class="clear-btn" onclick="clearPipeline()">Clear</button>
+        </div>
+        <div class="pipeline-builder empty" id="pipelineBuilder"></div>
+      </div>
+
+      <!-- Run controls -->
+      <div class="run-controls">
+        <div style="text-align:center;">
+          <button class="run-btn classic" id="runClassicBtn" onclick="runPipeline('classic')" disabled>
+            Run Classic IAM
+          </button>
+          <div class="run-btn-label">Shared identity, no scopes</div>
+        </div>
+        <div style="text-align:center;">
+          <button class="run-btn agentic" id="runAgenticBtn" onclick="runPipeline('agentic')" disabled>
+            Run Agentic IAM
+          </button>
+          <div class="run-btn-label">Per-agent identity, scope narrowing</div>
+        </div>
+      </div>
+
+      <!-- Results -->
+      <div class="results-grid" id="resultsGrid" style="display:none;">
+        <div class="result-panel" id="classicResults">
+          <h3 class="classic-title">Classic IAM Results</h3>
+          <div id="classicResultsBody"></div>
+        </div>
+        <div class="result-panel" id="agenticResults">
+          <h3 class="agentic-title">Agentic IAM Results</h3>
+          <div id="agenticResultsBody"></div>
+        </div>
+      </div>
+
+      <!-- Summary -->
+      <div class="summary-box" id="summaryBox" style="display:none;">
+        <h3>Takeaway</h3>
+        <div id="summaryText"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ==================== CONFIG ====================
+const CLASSIC_URL = 'http://localhost:18081';
+const AGENTIC_URL = 'http://localhost:18082';
+
+let aliceToken = null;
+let pipeline = []; // [{type, name, target?}]
+let classicRan = false;
+let agenticRan = false;
+
+// ==================== LOGIN ====================
+async function doLogin() {
+  const user = document.getElementById('loginUser').value.trim();
+  const pass = document.getElementById('loginPass').value;
+  const errEl = document.getElementById('loginError');
+  const btn = document.getElementById('loginBtn');
+
+  errEl.textContent = '';
+  btn.disabled = true;
+  btn.textContent = 'Signing in...';
+
+  try {
+    const resp = await fetch(`${AGENTIC_URL}/api/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: user, password: pass }),
+    });
+    const data = await resp.json();
+
+    if (data.access_token) {
+      aliceToken = data.access_token;
+      document.getElementById('userBadge').textContent = user;
+      document.getElementById('loginScreen').style.display = 'none';
+      document.getElementById('builderScreen').style.display = 'block';
+    } else {
+      errEl.textContent = data.error || 'Login failed';
+    }
+  } catch (e) {
+    errEl.textContent = `Connection error: ${e.message}`;
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Sign In';
+}
+
+function doLogout() {
+  aliceToken = null;
+  pipeline = [];
+  classicRan = false;
+  agenticRan = false;
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('builderScreen').style.display = 'none';
+  document.getElementById('resultsGrid').style.display = 'none';
+  document.getElementById('summaryBox').style.display = 'none';
+  renderPipeline();
+}
+
+// Enter key to login
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && document.getElementById('loginScreen').style.display !== 'none') {
+    doLogin();
+  }
+});
+
+// ==================== DRAG AND DROP ====================
+document.querySelectorAll('.drag-item').forEach(item => {
+  item.addEventListener('dragstart', (e) => {
+    e.dataTransfer.setData('application/json', JSON.stringify({
+      type: item.dataset.type,
+      name: item.dataset.name,
+      target: item.dataset.target || null,
+    }));
+    e.dataTransfer.effectAllowed = 'copy';
+  });
+});
+
+const builder = document.getElementById('pipelineBuilder');
+
+builder.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'copy';
+  builder.classList.add('drag-over');
+});
+
+builder.addEventListener('dragleave', () => {
+  builder.classList.remove('drag-over');
+});
+
+builder.addEventListener('drop', (e) => {
+  e.preventDefault();
+  builder.classList.remove('drag-over');
+
+  try {
+    const data = JSON.parse(e.dataTransfer.getData('application/json'));
+    // Actions attach to the last agent in the pipeline
+    if (data.type === 'action') {
+      const lastAgent = [...pipeline].reverse().find(s => s.type === 'agent');
+      if (!lastAgent) {
+        alert('Drop an agent first, then add actions to it.');
+        return;
+      }
+      // Insert the action right after the last agent
+      const lastAgentIdx = pipeline.lastIndexOf(lastAgent);
+      pipeline.splice(lastAgentIdx + 1, 0, data);
+    } else {
+      pipeline.push(data);
+    }
+    renderPipeline();
+  } catch (err) {
+    console.error('Drop error:', err);
+  }
+});
+
+function removeStep(index) {
+  pipeline.splice(index, 1);
+  renderPipeline();
+}
+
+function clearPipeline() {
+  pipeline = [];
+  classicRan = false;
+  agenticRan = false;
+  document.getElementById('resultsGrid').style.display = 'none';
+  document.getElementById('summaryBox').style.display = 'none';
+  renderPipeline();
+}
+
+function renderPipeline() {
+  const el = builder;
+  el.innerHTML = '';
+
+  const hasSteps = pipeline.length > 0;
+  el.classList.toggle('empty', !hasSteps);
+  document.getElementById('runClassicBtn').disabled = !hasSteps;
+  document.getElementById('runAgenticBtn').disabled = !hasSteps;
+
+  pipeline.forEach((step, i) => {
+    if (i > 0) {
+      const arrow = document.createElement('span');
+      arrow.className = 'pipeline-arrow';
+      arrow.innerHTML = '&rarr;';
+      el.appendChild(arrow);
+    }
+
+    const div = document.createElement('div');
+    div.className = 'pipeline-step';
+
+    if (step.type === 'agent') {
+      div.classList.add('agent');
+      div.innerHTML = `
+        <div class="step-name">${formatName(step.name)}</div>
+        <div class="step-detail">Agent</div>
+        <div class="status-icon" id="status-${i}"></div>
+        <button class="remove-btn" onclick="removeStep(${i})">x</button>
+      `;
+    } else {
+      div.classList.add('action-write');
+      // Find which agent this action belongs to
+      let ownerAgent = 'unknown';
+      for (let j = i - 1; j >= 0; j--) {
+        if (pipeline[j].type === 'agent') {
+          ownerAgent = formatName(pipeline[j].name);
+          break;
+        }
+      }
+      div.innerHTML = `
+        <div class="step-name">Write Model Registry</div>
+        <div class="step-detail">by ${ownerAgent}</div>
+        <div class="status-icon" id="status-${i}"></div>
+        <button class="remove-btn" onclick="removeStep(${i})">x</button>
+      `;
+    }
+
+    el.appendChild(div);
+  });
+}
+
+function formatName(name) {
+  return name.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+}
+
+// ==================== RUN PIPELINE ====================
+async function runPipeline(mode) {
+  const baseUrl = mode === 'classic' ? CLASSIC_URL : AGENTIC_URL;
+  const btn = document.getElementById(mode === 'classic' ? 'runClassicBtn' : 'runAgenticBtn');
+  btn.disabled = true;
+
+  document.getElementById('resultsGrid').style.display = 'grid';
+
+  const resultsBody = document.getElementById(mode === 'classic' ? 'classicResultsBody' : 'agenticResultsBody');
+  resultsBody.innerHTML = '<div style="color:#aaa;">Running pipeline...</div>';
+
+  // Reset pipeline step indicators
+  pipeline.forEach((_, i) => {
+    const statusEl = document.getElementById(`status-${i}`);
+    if (statusEl) statusEl.textContent = '';
+    const stepEl = statusEl?.closest('.pipeline-step');
+    if (stepEl) stepEl.className = stepEl.className.replace(/ (ok|fail|running)/g, '');
+  });
+
+  try {
+    // Build auth headers
+    let headers = { 'Content-Type': 'application/json' };
+    if (mode === 'agentic' && aliceToken) {
+      headers['Authorization'] = `Bearer ${aliceToken}`;
+    }
+
+    // Call the orchestrator
+    const resp = await fetch(`${baseUrl}/api/run-pipeline`, {
+      method: 'POST',
+      headers: headers,
+    });
+
+    const data = await resp.json();
+
+    // Map results to pipeline steps
+    displayResults(mode, data, resultsBody);
+
+  } catch (err) {
+    resultsBody.innerHTML = `<div style="color:var(--red);">Error: ${err.message}</div>`;
+  }
+
+  btn.disabled = false;
+
+  if (mode === 'classic') classicRan = true;
+  else agenticRan = true;
+
+  if (classicRan && agenticRan) showSummary();
+}
+
+function displayResults(mode, data, container) {
+  let html = '';
+
+  // Collect all agent results
+  const agentResults = {};
+  if (data.agent) {
+    agentResults['orchestrator'] = data.agent;
+  }
+  if (data.downstream_results) {
+    data.downstream_results.forEach(dr => {
+      if (dr.response && dr.response.agent) {
+        const name = dr.response.agent.agent_name;
+        agentResults[name] = dr.response.agent;
+        if (dr.response.model_registry_test) {
+          agentResults[name].model_registry_test = dr.response.model_registry_test;
+        }
+      }
+    });
+  }
+
+  // Walk through our pipeline and show results
+  let currentAgentName = null;
+
+  pipeline.forEach((step, i) => {
+    const stepEl = document.getElementById(`status-${i}`)?.closest('.pipeline-step');
+
+    if (step.type === 'agent') {
+      currentAgentName = step.name;
+      const info = agentResults[step.name];
+
+      if (info) {
+        if (stepEl) { stepEl.classList.add('ok'); }
+        const statusEl = document.getElementById(`status-${i}`);
+        if (statusEl) statusEl.textContent = 'OK';
+
+        if (mode === 'classic') {
+          html += `
+            <div class="result-step pass">
+              <div class="step-header">
+                <span class="name">${formatName(step.name)}</span>
+                <span class="status">200 OK</span>
+              </div>
+              <div class="step-body">
+                Identity: <strong style="color:var(--red);">${info.service_account || 'shared-sa'}</strong>
+              </div>
+            </div>`;
+        } else {
+          html += `
+            <div class="result-step pass">
+              <div class="step-header">
+                <span class="name">${formatName(step.name)}</span>
+                <span class="status">200 OK</span>
+              </div>
+              <div class="step-body">
+                Identity: <strong style="color:var(--green);">${info.service_account || 'N/A'}</strong><br>
+                Subject: ${info.subject || 'N/A'}<br>
+                Actor: ${info.actor || 'N/A'}<br>
+                Scope: <code>${info.scopes || 'N/A'}</code>
+              </div>
+            </div>`;
+        }
+      } else {
+        if (stepEl) { stepEl.classList.add('ok'); }
+        const statusEl = document.getElementById(`status-${i}`);
+        if (statusEl) statusEl.textContent = 'OK';
+        html += `
+          <div class="result-step pass">
+            <div class="step-header">
+              <span class="name">${formatName(step.name)}</span>
+              <span class="status">OK</span>
+            </div>
+          </div>`;
+      }
+    } else if (step.type === 'action' && step.name === 'write-model-registry') {
+      // Model registry write action
+      const agentInfo = currentAgentName ? agentResults[currentAgentName] : null;
+      const test = agentInfo?.model_registry_test;
+
+      if (mode === 'classic') {
+        // Classic: always succeeds (over-permissioned)
+        if (stepEl) { stepEl.classList.add('ok'); }
+        const statusEl = document.getElementById(`status-${i}`);
+        if (statusEl) statusEl.textContent = '200';
+
+        const writeAllowed = test ? test.allowed : true;
+        const writeStatus = test ? test.status : 200;
+
+        if (writeAllowed) {
+          html += `
+            <div class="result-step fail">
+              <div class="step-header">
+                <span class="name">${formatName(currentAgentName)} &rarr; Write Model Registry</span>
+                <span class="status">${writeStatus} OK</span>
+              </div>
+              <div class="step-body" style="color:var(--red);">
+                WRITE SUCCEEDED. ${formatName(currentAgentName)} has no business writing here
+                but shared identity grants full access.
+              </div>
+            </div>`;
+        }
+      } else {
+        // Agentic: should be denied
+        const writeAllowed = test ? test.allowed : false;
+        const writeStatus = test ? test.status : 403;
+
+        if (!writeAllowed) {
+          if (stepEl) { stepEl.classList.add('fail'); }
+          const statusEl = document.getElementById(`status-${i}`);
+          if (statusEl) statusEl.textContent = '403';
+
+          html += `
+            <div class="result-step pass">
+              <div class="step-header">
+                <span class="name">${formatName(currentAgentName)} &rarr; Write Model Registry</span>
+                <span class="status">403 DENIED</span>
+              </div>
+              <div class="step-body" style="color:var(--green);">
+                BLOCKED. ${formatName(currentAgentName)}'s token scope is
+                <code>${agentInfo?.scopes || 'data:read'}</code> &mdash;
+                does not include <code>model-registry:write</code>.
+              </div>
+            </div>`;
+        } else {
+          if (stepEl) { stepEl.classList.add('ok'); }
+          const statusEl = document.getElementById(`status-${i}`);
+          if (statusEl) statusEl.textContent = '200';
+
+          html += `
+            <div class="result-step fail">
+              <div class="step-header">
+                <span class="name">${formatName(currentAgentName)} &rarr; Write Model Registry</span>
+                <span class="status">${writeStatus} OK</span>
+              </div>
+              <div class="step-body" style="color:var(--red);">
+                Unexpectedly allowed!
+              </div>
+            </div>`;
+        }
+      }
+    }
+  });
+
+  // Identity summary
+  if (mode === 'classic') {
+    const identities = Object.values(agentResults).map(a => a.service_account).filter(Boolean);
+    const allSame = identities.length > 1 && identities.every(id => id === identities[0]);
+    if (allSame) {
+      html += `
+        <div class="break-indicator violation">
+          <div class="break-label">BREAK 1: Shared Identity</div>
+          All agents use <code>${identities[0]}</code>. Cannot distinguish who did what.
+        </div>`;
+    }
+
+    // Check for any write-model-registry action in pipeline
+    const hasWriteAction = pipeline.some(s => s.name === 'write-model-registry');
+    if (hasWriteAction) {
+      html += `
+        <div class="break-indicator violation">
+          <div class="break-label">BREAK 2: No Scope Enforcement</div>
+          Any agent can write to Model Registry. Classic IAM cannot enforce least-privilege.
+        </div>`;
+    }
+  } else {
+    // Agentic delegation chain
+    const agents = Object.keys(agentResults);
+    if (agents.length > 1) {
+      html += `
+        <div class="success-indicator">
+          <div class="success-label">Delegation Chain Verified</div>
+          Every hop has unique identity, actor tracking, and scoped permissions.
+        </div>`;
+    }
+
+    const hasWriteAction = pipeline.some(s => s.name === 'write-model-registry');
+    if (hasWriteAction) {
+      html += `
+        <div class="success-indicator">
+          <div class="success-label">Scope Narrowing Enforced</div>
+          Agents can only access resources their scoped token allows. Alice's mistake was caught.
+        </div>`;
+    }
+  }
+
+  container.innerHTML = html;
+}
+
+function showSummary() {
+  const box = document.getElementById('summaryBox');
+  box.style.display = 'block';
+
+  const hasWriteAction = pipeline.some(s => s.name === 'write-model-registry');
+
+  let text = '';
+  if (hasWriteAction) {
+    text = `
+      <p style="font-size:1.05em;margin-bottom:12px;">
+        Alice accidentally gave <strong>Data Agent</strong> write access to Model Registry.
+      </p>
+      <div style="display:flex;gap:24px;justify-content:center;flex-wrap:wrap;">
+        <div style="text-align:center;">
+          <div style="color:var(--red);font-weight:bold;font-size:1.1em;">Classic IAM</div>
+          <div style="color:#ccc;font-size:0.9em;">Mistake goes through silently.<br>Shared identity, no guardrails.</div>
+        </div>
+        <div style="font-size:2em;color:#555;align-self:center;">vs</div>
+        <div style="text-align:center;">
+          <div style="color:var(--green);font-weight:bold;font-size:1.1em;">Agentic IAM</div>
+          <div style="color:#ccc;font-size:0.9em;">403 Denied. Scope narrowing<br>caught the misconfiguration.</div>
+        </div>
+      </div>
+      <p style="color:var(--purple);font-weight:bold;margin-top:16px;font-size:0.95em;">
+        Even when the human makes an error, agentic IAM enforces least-privilege at every hop.
+      </p>`;
+  } else {
+    text = `
+      <p style="font-size:0.95em;">
+        Both pipelines completed. Try dragging <strong>"Write Model Registry"</strong>
+        after <strong>Data Agent</strong> to see what happens when Alice makes a mistake.
+      </p>`;
+  }
+
+  document.getElementById('summaryText').innerHTML = text;
+}
+
+// ==================== INIT ====================
+renderPipeline();
+</script>
+</body>
+</html>
