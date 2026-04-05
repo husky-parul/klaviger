@@ -798,6 +798,14 @@ async function runPipeline(mode) {
     if (stepEl) stepEl.className = stepEl.className.replace(/ (ok|fail|running)/g, '');
   });
 
+  // Animate steps as running
+  pipeline.forEach((_, i) => {
+    const stepEl = document.getElementById(`status-${i}`)?.closest('.pipeline-step');
+    if (stepEl) stepEl.classList.add('running');
+    const statusEl = document.getElementById(`status-${i}`);
+    if (statusEl) statusEl.textContent = '...';
+  });
+
   try {
     // Build auth headers
     let headers = { 'Content-Type': 'application/json' };
@@ -805,19 +813,25 @@ async function runPipeline(mode) {
       headers['Authorization'] = `Bearer ${aliceToken}`;
     }
 
-    // Call the orchestrator
-    const resp = await fetch(`${baseUrl}/api/run-pipeline`, {
+    // Send custom pipeline to orchestrator
+    const resp = await fetch(`${baseUrl}/api/run-custom-pipeline`, {
       method: 'POST',
       headers: headers,
+      body: JSON.stringify({ steps: pipeline }),
     });
 
     const data = await resp.json();
-
-    // Map results to pipeline steps
     displayResults(mode, data, resultsBody);
 
   } catch (err) {
     resultsBody.innerHTML = `<div style="color:var(--red);">Error: ${err.message}</div>`;
+    // Clear running state
+    pipeline.forEach((_, i) => {
+      const stepEl = document.getElementById(`status-${i}`)?.closest('.pipeline-step');
+      if (stepEl) stepEl.className = stepEl.className.replace(/ running/g, '');
+      const statusEl = document.getElementById(`status-${i}`);
+      if (statusEl) statusEl.textContent = '';
+    });
   }
 
   btn.disabled = false;
@@ -830,36 +844,38 @@ async function runPipeline(mode) {
 
 function displayResults(mode, data, container) {
   let html = '';
+  const pipelineResults = data.pipeline_results || [];
+  const orchestratorInfo = data.orchestrator;
 
-  // Collect all agent results
-  const agentResults = {};
-  if (data.agent) {
-    agentResults['orchestrator'] = data.agent;
-  }
-  if (data.downstream_results) {
-    data.downstream_results.forEach(dr => {
-      if (dr.response && dr.response.agent) {
-        const name = dr.response.agent.agent_name;
-        agentResults[name] = dr.response.agent;
-        if (dr.response.model_registry_test) {
-          agentResults[name].model_registry_test = dr.response.model_registry_test;
-        }
-      }
-    });
+  // Show orchestrator info
+  if (orchestratorInfo) {
+    html += `
+      <div class="result-step pass" style="border-left:3px solid var(--purple);">
+        <div class="step-header">
+          <span class="name">Orchestrator</span>
+          <span class="status" style="color:var(--purple);">HUB</span>
+        </div>
+        <div class="step-body">
+          Identity: <strong>${orchestratorInfo.service_account || 'N/A'}</strong>
+        </div>
+      </div>`;
   }
 
-  // Walk through our pipeline and show results
+  // Walk through pipeline results
   let currentAgentName = null;
 
-  pipeline.forEach((step, i) => {
+  pipelineResults.forEach((pr, i) => {
+    const step = pr.step;
     const stepEl = document.getElementById(`status-${i}`)?.closest('.pipeline-step');
 
     if (step.type === 'agent') {
       currentAgentName = step.name;
-      const info = agentResults[step.name];
+      const agentData = pr.result;
+      const info = agentData?.response?.agent;
+      const status = agentData?.status || 0;
 
-      if (info) {
-        if (stepEl) { stepEl.classList.add('ok'); }
+      if (info && status === 200) {
+        if (stepEl) { stepEl.className = stepEl.className.replace(/ running/g, ''); stepEl.classList.add('ok'); }
         const statusEl = document.getElementById(`status-${i}`);
         if (statusEl) statusEl.textContent = 'OK';
 
@@ -890,79 +906,91 @@ function displayResults(mode, data, container) {
             </div>`;
         }
       } else {
-        if (stepEl) { stepEl.classList.add('ok'); }
+        if (stepEl) { stepEl.className = stepEl.className.replace(/ running/g, ''); stepEl.classList.add('fail'); }
         const statusEl = document.getElementById(`status-${i}`);
-        if (statusEl) statusEl.textContent = 'OK';
+        if (statusEl) statusEl.textContent = status || 'ERR';
         html += `
-          <div class="result-step pass">
+          <div class="result-step fail">
             <div class="step-header">
               <span class="name">${formatName(step.name)}</span>
-              <span class="status">OK</span>
+              <span class="status">${status || 'ERROR'}</span>
             </div>
+            <div class="step-body">${agentData?.error || 'Failed to reach agent'}</div>
           </div>`;
       }
+
     } else if (step.type === 'action' && step.name === 'write-model-registry') {
-      // Model registry write action
-      const agentInfo = currentAgentName ? agentResults[currentAgentName] : null;
-      const test = agentInfo?.model_registry_test;
+      const writeData = pr.result;
+      const actingAgent = pr.acting_agent || currentAgentName;
+      const writeResp = writeData?.response?.model_registry_test;
+      const writeStatus = writeData?.status || 0;
 
       if (mode === 'classic') {
-        // Classic: always succeeds (over-permissioned)
-        if (stepEl) { stepEl.classList.add('ok'); }
+        // Classic: write should succeed (no scope enforcement)
+        const allowed = writeResp ? writeResp.allowed : (writeStatus === 200);
+        const statusCode = writeResp ? writeResp.status : writeStatus;
+
+        if (stepEl) { stepEl.className = stepEl.className.replace(/ running/g, ''); stepEl.classList.add('ok'); }
         const statusEl = document.getElementById(`status-${i}`);
-        if (statusEl) statusEl.textContent = '200';
+        if (statusEl) statusEl.textContent = statusCode || '200';
 
-        const writeAllowed = test ? test.allowed : true;
-        const writeStatus = test ? test.status : 200;
+        html += `
+          <div class="result-step fail">
+            <div class="step-header">
+              <span class="name">${formatName(actingAgent)} &rarr; Write Model Registry</span>
+              <span class="status">${statusCode || 200} OK</span>
+            </div>
+            <div class="step-body" style="color:var(--red);">
+              WRITE SUCCEEDED. ${formatName(actingAgent)} has no business writing here
+              but shared identity grants full access.
+            </div>
+          </div>`;
 
-        if (writeAllowed) {
+      } else {
+        // Agentic: check if write was allowed or denied
+        const allowed = writeResp ? writeResp.allowed : (writeStatus === 200);
+        const statusCode = writeResp ? writeResp.status : writeStatus;
+
+        if (allowed) {
+          if (stepEl) { stepEl.className = stepEl.className.replace(/ running/g, ''); stepEl.classList.add('ok'); }
+          const statusEl = document.getElementById(`status-${i}`);
+          if (statusEl) statusEl.textContent = statusCode;
+
           html += `
-            <div class="result-step fail">
+            <div class="result-step pass" style="border-color: var(--green);">
               <div class="step-header">
-                <span class="name">${formatName(currentAgentName)} &rarr; Write Model Registry</span>
-                <span class="status">${writeStatus} OK</span>
+                <span class="name">${formatName(actingAgent)} &rarr; Write Model Registry</span>
+                <span class="status" style="color:var(--green);">${statusCode} OK</span>
               </div>
-              <div class="step-body" style="color:var(--red);">
-                WRITE SUCCEEDED. ${formatName(currentAgentName)} has no business writing here
-                but shared identity grants full access.
+              <div class="step-body" style="color:var(--green);">
+                WRITE ALLOWED. ${formatName(actingAgent)}'s scope includes
+                <code>write:model-registry</code>.
               </div>
             </div>`;
-        }
-      } else {
-        // Agentic: should be denied
-        const writeAllowed = test ? test.allowed : false;
-        const writeStatus = test ? test.status : 403;
-
-        if (!writeAllowed) {
-          if (stepEl) { stepEl.classList.add('fail'); }
+        } else {
+          if (stepEl) { stepEl.className = stepEl.className.replace(/ running/g, ''); stepEl.classList.add('fail'); }
           const statusEl = document.getElementById(`status-${i}`);
           if (statusEl) statusEl.textContent = '403';
+
+          // Extract scope from the agent step result if available
+          let agentScopes = 'N/A';
+          for (const prev of pipelineResults) {
+            if (prev.step.type === 'agent' && prev.step.name === actingAgent) {
+              agentScopes = prev.result?.response?.agent?.scopes || 'N/A';
+              break;
+            }
+          }
 
           html += `
             <div class="result-step pass">
               <div class="step-header">
-                <span class="name">${formatName(currentAgentName)} &rarr; Write Model Registry</span>
+                <span class="name">${formatName(actingAgent)} &rarr; Write Model Registry</span>
                 <span class="status">403 DENIED</span>
               </div>
               <div class="step-body" style="color:var(--green);">
-                BLOCKED. ${formatName(currentAgentName)}'s token scope is
-                <code>${agentInfo?.scopes || 'data:read'}</code> &mdash;
-                does not include <code>model-registry:write</code>.
-              </div>
-            </div>`;
-        } else {
-          if (stepEl) { stepEl.classList.add('ok'); }
-          const statusEl = document.getElementById(`status-${i}`);
-          if (statusEl) statusEl.textContent = '200';
-
-          html += `
-            <div class="result-step fail">
-              <div class="step-header">
-                <span class="name">${formatName(currentAgentName)} &rarr; Write Model Registry</span>
-                <span class="status">${writeStatus} OK</span>
-              </div>
-              <div class="step-body" style="color:var(--red);">
-                Unexpectedly allowed!
+                BLOCKED. ${formatName(actingAgent)}'s token scope is
+                <code>${agentScopes}</code> &mdash;
+                does not include <code>write:model-registry</code>.
               </div>
             </div>`;
         }
@@ -970,9 +998,12 @@ function displayResults(mode, data, container) {
     }
   });
 
-  // Identity summary
+  // Identity summary for classic mode
   if (mode === 'classic') {
-    const identities = Object.values(agentResults).map(a => a.service_account).filter(Boolean);
+    const identities = pipelineResults
+      .filter(pr => pr.step.type === 'agent' && pr.result?.response?.agent)
+      .map(pr => pr.result.response.agent.service_account)
+      .filter(Boolean);
     const allSame = identities.length > 1 && identities.every(id => id === identities[0]);
     if (allSame) {
       html += `
@@ -982,7 +1013,6 @@ function displayResults(mode, data, container) {
         </div>`;
     }
 
-    // Check for any write-model-registry action in pipeline
     const hasWriteAction = pipeline.some(s => s.name === 'write-model-registry');
     if (hasWriteAction) {
       html += `
@@ -992,9 +1022,8 @@ function displayResults(mode, data, container) {
         </div>`;
     }
   } else {
-    // Agentic delegation chain
-    const agents = Object.keys(agentResults);
-    if (agents.length > 1) {
+    const agentCount = pipelineResults.filter(pr => pr.step.type === 'agent' && pr.result?.status === 200).length;
+    if (agentCount > 1) {
       html += `
         <div class="success-indicator">
           <div class="success-label">Delegation Chain Verified</div>
@@ -1002,12 +1031,23 @@ function displayResults(mode, data, container) {
         </div>`;
     }
 
-    const hasWriteAction = pipeline.some(s => s.name === 'write-model-registry');
-    if (hasWriteAction) {
+    // Check write results for summary
+    const writeSteps = pipelineResults.filter(pr => pr.step.name === 'write-model-registry');
+    const anyDenied = writeSteps.some(pr => {
+      const test = pr.result?.response?.model_registry_test;
+      return test && !test.allowed;
+    });
+    const anyAllowed = writeSteps.some(pr => {
+      const test = pr.result?.response?.model_registry_test;
+      return test && test.allowed;
+    });
+
+    if (anyDenied) {
       html += `
         <div class="success-indicator">
           <div class="success-label">Scope Narrowing Enforced</div>
-          Agents can only access resources their scoped token allows. Alice's mistake was caught.
+          Agents can only access resources their scoped token allows.
+          ${anyAllowed ? 'Authorized agents succeeded, unauthorized agents were blocked.' : "Alice's mistake was caught."}
         </div>`;
     }
   }
@@ -1021,25 +1061,34 @@ function showSummary() {
 
   const hasWriteAction = pipeline.some(s => s.name === 'write-model-registry');
 
+  // Find which agents have write actions
+  const writeAgents = [];
+  let lastAgent = null;
+  pipeline.forEach(step => {
+    if (step.type === 'agent') lastAgent = step.name;
+    if (step.name === 'write-model-registry' && lastAgent) writeAgents.push(lastAgent);
+  });
+
   let text = '';
   if (hasWriteAction) {
+    const agentNames = writeAgents.map(formatName).join(', ');
     text = `
       <p style="font-size:1.05em;margin-bottom:12px;">
-        Alice accidentally gave <strong>Data Agent</strong> write access to Model Registry.
+        Alice configured <strong>${agentNames}</strong> to write to Model Registry.
       </p>
       <div style="display:flex;gap:24px;justify-content:center;flex-wrap:wrap;">
         <div style="text-align:center;">
           <div style="color:var(--red);font-weight:bold;font-size:1.1em;">Classic IAM</div>
-          <div style="color:#ccc;font-size:0.9em;">Mistake goes through silently.<br>Shared identity, no guardrails.</div>
+          <div style="color:#ccc;font-size:0.9em;">All writes succeed silently.<br>Shared identity, no guardrails.</div>
         </div>
         <div style="font-size:2em;color:#555;align-self:center;">vs</div>
         <div style="text-align:center;">
           <div style="color:var(--green);font-weight:bold;font-size:1.1em;">Agentic IAM</div>
-          <div style="color:#ccc;font-size:0.9em;">403 Denied. Scope narrowing<br>caught the misconfiguration.</div>
+          <div style="color:#ccc;font-size:0.9em;">Only agents with <code>write:model-registry</code><br>scope can write. Others get 403.</div>
         </div>
       </div>
       <p style="color:var(--purple);font-weight:bold;margin-top:16px;font-size:0.95em;">
-        Even when the human makes an error, agentic IAM enforces least-privilege at every hop.
+        Agentic IAM enforces least-privilege at every hop &mdash; even when the human makes an error.
       </p>`;
   } else {
     text = `

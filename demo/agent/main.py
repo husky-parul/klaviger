@@ -396,11 +396,64 @@ class DemoHandler(http.server.BaseHTTPRequestHandler):
                         downstream_result = call_downstream(url + "/api/run-pipeline", dict(self.headers))
                         result["downstream_results"].append(downstream_result)
 
-            # If this is the data-agent, try to write to model-registry (Break 2)
-            if NAME == "data-agent" and MODEL_REGISTRY_URL:
+            # Every agent with MODEL_REGISTRY_URL attempts the write (demo: scope narrowing test)
+            if MODEL_REGISTRY_URL:
                 result["model_registry_test"] = try_model_registry_write(dict(self.headers))
 
             self.send_json(200, result)
+            return
+
+        if self.path == "/api/run-custom-pipeline":
+            # Run a custom pipeline: orchestrator calls only the specified agents/actions
+            # Expects JSON body: {"steps": [{"type":"agent","name":"data-agent"}, {"type":"action","name":"write-model-registry"}, ...]}
+            content_length = int(self.headers.get("Content-Length", 0))
+            body = json.loads(self.rfile.read(content_length)) if content_length else {}
+            steps = body.get("steps", [])
+
+            info = get_identity_info(dict(self.headers))
+            results = []
+
+            for step in steps:
+                step_type = step.get("type", "")
+                step_name = step.get("name", "")
+
+                if step_type == "agent":
+                    # Call this agent's /api/agent-step endpoint
+                    url = f"http://{step_name}/api/agent-step"
+                    agent_result = call_downstream(url, dict(self.headers))
+                    results.append({"step": step, "result": agent_result})
+
+                elif step_type == "action" and step_name == "write-model-registry":
+                    # Find which agent this action belongs to (last agent before this step)
+                    acting_agent = None
+                    for prev in reversed(results):
+                        if prev["step"]["type"] == "agent":
+                            acting_agent = prev["step"]["name"]
+                            break
+                    # Call that agent's model-registry write endpoint
+                    if acting_agent:
+                        url = f"http://{acting_agent}/api/write-model-registry"
+                        write_result = call_downstream(url, dict(self.headers))
+                        results.append({"step": step, "acting_agent": acting_agent, "result": write_result})
+                    else:
+                        results.append({"step": step, "error": "No agent to perform this action"})
+
+            self.send_json(200, {
+                "orchestrator": info,
+                "pipeline_results": results,
+            })
+            return
+
+        if self.path == "/api/agent-step":
+            # Single agent step: return identity info only (no downstream calls)
+            info = get_identity_info(dict(self.headers))
+            self.send_json(200, {"agent": info})
+            return
+
+        if self.path == "/api/write-model-registry":
+            # Attempt model-registry write on behalf of this agent
+            result = try_model_registry_write(dict(self.headers))
+            self.send_json(200, {"model_registry_test": result})
             return
 
         # Generic POST handler

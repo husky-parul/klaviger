@@ -114,6 +114,16 @@ data:
     forwardProxy:
       defaultMode:
         type: "passthrough"
+      hostRules:
+        - hostPattern: "model-registry"
+          mode:
+            type: "oauth"
+            oauth:
+              tokenUrl: "http://keycloak.agentic-ml.svc/realms/demo/protocol/openid-connect/token"
+              scope: "read:features"
+              clientTokenPath: "/var/run/secrets/tokens/keycloaktoken"
+              clientAuthMethod: "assertion"
+              includeActorToken: true
 
     observability:
       metrics:
@@ -158,6 +168,16 @@ data:
     forwardProxy:
       defaultMode:
         type: "passthrough"
+      hostRules:
+        - hostPattern: "model-registry"
+          mode:
+            type: "oauth"
+            oauth:
+              tokenUrl: "http://keycloak.agentic-ml.svc/realms/demo/protocol/openid-connect/token"
+              scope: "write:model-registry"
+              clientTokenPath: "/var/run/secrets/tokens/keycloaktoken"
+              clientAuthMethod: "assertion"
+              includeActorToken: true
 
     observability:
       metrics:
