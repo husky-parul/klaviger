@@ -84,129 +84,138 @@ $KCADMIN set-password -r demo --username alice --new-password demo 2>/dev/null |
 
 # === REST API section ===
 # kcadm -b silently fails on KC 26.5.2 for setting attributes.
-# Use REST API via python for: client attributes, audience mappers, scope assignments.
+# Use REST API via kubectl port-forward + curl from the host.
 echo ""
 echo "Configuring client attributes and scope assignments via REST API..."
 
-# Find an agent pod with python to run REST API calls
-AGENT_POD=$(kubectl -n agentic-ml get pod -l app=ml-agent -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
-if [ -z "$AGENT_POD" ]; then
-  # Fall back to any pod with python
-  AGENT_POD=$(kubectl -n agentic-ml get pod -l agent=orchestrator -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
-fi
+# Port-forward Keycloak to a local port for REST API calls
+KC_LOCAL_PORT=18080
+kubectl -n agentic-ml port-forward svc/keycloak ${KC_LOCAL_PORT}:80 &
+KC_PF_PID=$!
+sleep 2
 
-if [ -z "$AGENT_POD" ]; then
-  echo "WARNING: No agent pod available for REST API calls."
-  echo "Client attributes and scope assignments must be configured manually."
-  echo "Run this script again after agent pods are deployed."
-else
-  kubectl -n agentic-ml exec "$AGENT_POD" -c agent -- python3 -c "
-import urllib.request, urllib.parse, json, sys
-
-KC = 'http://keycloak.agentic-ml.svc'
-AGENTS = ['orchestrator', 'data-agent', 'training-agent', 'eval-agent', 'deploy-agent', 'model-registry']
-ALL_CLIENTS = AGENTS + ['demo-dashboard']
+KC_URL="http://localhost:${KC_LOCAL_PORT}"
 
 # Get admin token
-data = urllib.parse.urlencode({
-    'grant_type': 'password', 'client_id': 'admin-cli',
-    'username': 'admin', 'password': 'admin',
-}).encode()
-req = urllib.request.Request(f'{KC}/realms/master/protocol/openid-connect/token', data=data)
-req.add_header('Content-Type', 'application/x-www-form-urlencoded')
-resp = urllib.request.urlopen(req, timeout=10)
-admin_token = json.loads(resp.read())['access_token']
+ADMIN_TOKEN=$(curl -s -X POST "${KC_URL}/realms/master/protocol/openid-connect/token" \
+  -d "grant_type=password&client_id=admin-cli&username=admin&password=admin" \
+  -H "Content-Type: application/x-www-form-urlencoded" | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
 
-def api(method, path, body=None):
-    url = f'{KC}/admin/realms/demo{path}'
-    data = json.dumps(body).encode() if body else None
-    req = urllib.request.Request(url, data=data, method=method)
-    req.add_header('Authorization', f'Bearer {admin_token}')
-    req.add_header('Content-Type', 'application/json')
-    try:
-        resp = urllib.request.urlopen(req, timeout=10)
-        content = resp.read().decode()
-        return resp.status, json.loads(content) if content else None
-    except urllib.error.HTTPError as e:
-        return e.code, e.read().decode()
+kc_api() {
+  local method=$1
+  local path=$2
+  local body=${3:-}
+  if [ -n "$body" ]; then
+    curl -s -X "$method" "${KC_URL}/admin/realms/demo${path}" \
+      -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+      -H "Content-Type: application/json" \
+      -d "$body"
+  else
+    curl -s -X "$method" "${KC_URL}/admin/realms/demo${path}" \
+      -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+      -H "Content-Type: application/json"
+  fi
+}
 
-def api_get(path):
-    s, r = api('GET', path)
-    return r
+kc_api_status() {
+  local method=$1
+  local path=$2
+  local body=${3:-}
+  if [ -n "$body" ]; then
+    curl -s -o /dev/null -w "%{http_code}" -X "$method" "${KC_URL}/admin/realms/demo${path}" \
+      -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+      -H "Content-Type: application/json" \
+      -d "$body"
+  else
+    curl -s -o /dev/null -w "%{http_code}" -X "$method" "${KC_URL}/admin/realms/demo${path}" \
+      -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+      -H "Content-Type: application/json"
+  fi
+}
+
+AGENTS=("orchestrator" "data-agent" "training-agent" "eval-agent" "deploy-agent" "model-registry")
+ALL_CLIENTS=("${AGENTS[@]}" "demo-dashboard")
 
 # 1. Set client attributes (jwt.credential.*, token exchange enabled)
-print('Setting client attributes...')
-clients_resp = api_get('/clients?max=100')
-client_map = {c['clientId']: c for c in clients_resp}
+echo "Setting client attributes..."
+for agent in "${AGENTS[@]}"; do
+  sa_sub="system:serviceaccount:agentic-ml:${agent}"
+  CLIENT_JSON=$(kc_api GET "/clients?clientId=${agent}")
+  CLIENT_UUID=$(echo "$CLIENT_JSON" | python3 -c "import sys,json; clients=json.load(sys.stdin); print(clients[0]['id'] if clients else '')" 2>/dev/null)
+  if [ -z "$CLIENT_UUID" ]; then
+    echo "  ${agent}: NOT FOUND (skipping)"
+    continue
+  fi
 
-for agent in AGENTS:
-    if agent not in client_map:
-        print(f'  {agent}: NOT FOUND (skipping)')
-        continue
-    c = client_map[agent]
-    cid = c['id']
-    sa_sub = f'system:serviceaccount:agentic-ml:{agent}'
-    attrs = c.get('attributes', {})
-    attrs['jwt.credential.issuer'] = 'kubernetes'
-    attrs['jwt.credential.sub'] = sa_sub
-    attrs['standard.token.exchange.enabled'] = 'true'
-    status, _ = api('PUT', f'/clients/{cid}', {
-        'id': cid, 'clientId': agent, 'attributes': attrs,
-    })
-    print(f'  {agent}: {\"ok\" if status == 204 else f\"status {status}\"}')
+  # Get existing attributes and merge
+  EXISTING_ATTRS=$(echo "$CLIENT_JSON" | python3 -c "import sys,json; print(json.dumps(json.load(sys.stdin)[0].get('attributes',{})))" 2>/dev/null)
+  MERGED_ATTRS=$(python3 -c "
+import json,sys
+attrs = json.loads('${EXISTING_ATTRS}')
+attrs['jwt.credential.issuer'] = 'kubernetes'
+attrs['jwt.credential.sub'] = '${sa_sub}'
+attrs['standard.token.exchange.enabled'] = 'true'
+print(json.dumps(attrs))
+")
+  STATUS=$(kc_api_status PUT "/clients/${CLIENT_UUID}" "{\"id\":\"${CLIENT_UUID}\",\"clientId\":\"${agent}\",\"attributes\":${MERGED_ATTRS}}")
+  echo "  ${agent}: ${STATUS}"
+done
 
-# 2. Add audience mapper directly on each client (belt and suspenders)
-print('Adding client audience mappers...')
-for agent in AGENTS:
-    if agent not in client_map:
-        continue
-    cid = client_map[agent]['id']
-    _, mappers = api('GET', f'/clients/{cid}/protocol-mappers/models')
-    existing = [m['name'] for m in (mappers or [])] if isinstance(mappers, list) else []
-    mapper_name = f'{agent}-audience-mapper'
-    if mapper_name not in existing:
-        status, _ = api('POST', f'/clients/{cid}/protocol-mappers/models', {
-            'name': mapper_name, 'protocol': 'openid-connect',
-            'protocolMapper': 'oidc-audience-mapper',
-            'config': {'included.client.audience': agent, 'access.token.claim': 'true'},
-        })
-        print(f'  {agent}: {\"ok\" if status == 201 else f\"status {status}\"}')
-    else:
-        print(f'  {agent}: exists')
+# 2. Add audience mapper directly on each client
+echo "Adding client audience mappers..."
+for agent in "${AGENTS[@]}"; do
+  CLIENT_UUID=$(kc_api GET "/clients?clientId=${agent}" | python3 -c "import sys,json; clients=json.load(sys.stdin); print(clients[0]['id'] if clients else '')" 2>/dev/null)
+  [ -z "$CLIENT_UUID" ] && continue
+
+  EXISTING=$(kc_api GET "/clients/${CLIENT_UUID}/protocol-mappers/models" | python3 -c "import sys,json; print(','.join(m['name'] for m in json.load(sys.stdin)))" 2>/dev/null)
+  if echo "$EXISTING" | grep -q "${agent}-audience-mapper"; then
+    echo "  ${agent}: exists"
+  else
+    STATUS=$(kc_api_status POST "/clients/${CLIENT_UUID}/protocol-mappers/models" \
+      "{\"name\":\"${agent}-audience-mapper\",\"protocol\":\"openid-connect\",\"protocolMapper\":\"oidc-audience-mapper\",\"config\":{\"included.client.audience\":\"${agent}\",\"access.token.claim\":\"true\"}}")
+    echo "  ${agent}: ${STATUS}"
+  fi
+done
 
 # 3. Add orchestrator audience mapper to dashboard client
-if 'demo-dashboard' in client_map:
-    cid = client_map['demo-dashboard']['id']
-    _, mappers = api('GET', f'/clients/{cid}/protocol-mappers/models')
-    existing = [m['name'] for m in (mappers or [])] if isinstance(mappers, list) else []
-    if 'orchestrator-audience' not in existing:
-        status, _ = api('POST', f'/clients/{cid}/protocol-mappers/models', {
-            'name': 'orchestrator-audience', 'protocol': 'openid-connect',
-            'protocolMapper': 'oidc-audience-mapper',
-            'config': {'included.client.audience': 'orchestrator', 'access.token.claim': 'true'},
-        })
-        print(f'  demo-dashboard orchestrator audience: {\"ok\" if status == 201 else f\"status {status}\"}')
+DASH_UUID=$(kc_api GET "/clients?clientId=demo-dashboard" | python3 -c "import sys,json; clients=json.load(sys.stdin); print(clients[0]['id'] if clients else '')" 2>/dev/null)
+if [ -n "$DASH_UUID" ]; then
+  EXISTING=$(kc_api GET "/clients/${DASH_UUID}/protocol-mappers/models" | python3 -c "import sys,json; print(','.join(m['name'] for m in json.load(sys.stdin)))" 2>/dev/null)
+  if ! echo "$EXISTING" | grep -q "orchestrator-audience"; then
+    STATUS=$(kc_api_status POST "/clients/${DASH_UUID}/protocol-mappers/models" \
+      "{\"name\":\"orchestrator-audience\",\"protocol\":\"openid-connect\",\"protocolMapper\":\"oidc-audience-mapper\",\"config\":{\"included.client.audience\":\"orchestrator\",\"access.token.claim\":\"true\"}}")
+    echo "  demo-dashboard orchestrator audience: ${STATUS}"
+  fi
+fi
 
 # 4. Assign all scopes (capability + audience) to all clients
-print('Assigning scopes to clients...')
-scopes = api_get('/client-scopes')
-scope_ids = {s['name']: s['id'] for s in scopes}
+echo "Assigning scopes to clients..."
+ALL_SCOPE_JSON=$(kc_api GET "/client-scopes")
 
-for client_name in ALL_CLIENTS:
-    if client_name not in client_map:
-        continue
-    cid = client_map[client_name]['id']
-    for scope_name, scope_id in scope_ids.items():
-        if scope_name.startswith('aud:') or scope_name in [
-            'read:features', 'write:model-registry', 'provision:gpu',
-            'read:test-data', 'write:eval-reports', 'deploy:staging',
-        ]:
-            api('PUT', f'/clients/{cid}/default-client-scopes/{scope_id}')
-    print(f'  {client_name}: scopes assigned')
+for client_name in "${ALL_CLIENTS[@]}"; do
+  CLIENT_UUID=$(kc_api GET "/clients?clientId=${client_name}" | python3 -c "import sys,json; clients=json.load(sys.stdin); print(clients[0]['id'] if clients else '')" 2>/dev/null)
+  [ -z "$CLIENT_UUID" ] && continue
 
-print('REST API configuration complete.')
-" 2>&1
-fi
+  # Get scope IDs that we care about
+  SCOPE_IDS=$(echo "$ALL_SCOPE_JSON" | python3 -c "
+import sys,json
+scopes = json.load(sys.stdin)
+wanted = {'read:features','write:model-registry','provision:gpu','read:test-data','write:eval-reports','deploy:staging'}
+for s in scopes:
+    if s['name'].startswith('aud:') or s['name'] in wanted:
+        print(s['id'])
+")
+  for scope_id in $SCOPE_IDS; do
+    kc_api_status PUT "/clients/${CLIENT_UUID}/default-client-scopes/${scope_id}" > /dev/null
+  done
+  echo "  ${client_name}: scopes assigned"
+done
+
+# Clean up port-forward
+kill $KC_PF_PID 2>/dev/null || true
+wait $KC_PF_PID 2>/dev/null || true
+
+echo "REST API configuration complete."
 
 echo ""
 echo "=== Keycloak configuration complete ==="
