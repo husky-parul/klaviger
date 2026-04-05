@@ -482,6 +482,26 @@
     margin-bottom: 8px;
   }
 
+  .identity-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8em;
+    margin-top: 8px;
+  }
+  .identity-table th {
+    background: var(--purple);
+    color: white;
+    padding: 8px 12px;
+    text-align: left;
+  }
+  .identity-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid #555;
+    color: #f0f0f0;
+  }
+  .identity-table .same { color: var(--red); font-weight: bold; }
+  .identity-table .unique { color: var(--green); }
+
   @keyframes pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.4; }
@@ -561,38 +581,43 @@
         <div class="pipeline-builder empty" id="pipelineBuilder"></div>
       </div>
 
-      <!-- Run controls -->
+      <!-- Mode toggle + run -->
       <div class="run-controls">
-        <div style="text-align:center;">
-          <button class="run-btn classic" id="runClassicBtn" onclick="runPipeline('classic')" disabled>
-            Run Classic IAM
-          </button>
-          <div class="run-btn-label">Shared identity, no scopes</div>
+        <div style="display:flex;gap:8px;">
+          <button class="run-btn classic" id="modeClassicBtn" onclick="setMode('classic')" style="padding:10px 24px;font-size:0.95em;">Classic IAM</button>
+          <button class="run-btn agentic" id="modeAgenticBtn" onclick="setMode('agentic')" style="padding:10px 24px;font-size:0.95em;opacity:0.5;">Agentic IAM</button>
         </div>
-        <div style="text-align:center;">
-          <button class="run-btn agentic" id="runAgenticBtn" onclick="runPipeline('agentic')" disabled>
-            Run Agentic IAM
-          </button>
-          <div class="run-btn-label">Per-agent identity, scope narrowing</div>
-        </div>
+        <button class="run-btn classic" id="runBtn" onclick="runPipeline(currentMode)" disabled>
+          Run Pipeline
+        </button>
       </div>
 
       <!-- Results -->
       <div class="results-grid" id="resultsGrid" style="display:none;">
-        <div class="result-panel" id="classicResults">
-          <h3 class="classic-title">Classic IAM Results</h3>
-          <div id="classicResultsBody"></div>
+        <div class="result-panel">
+          <h3 style="color:#81d4fa;">Break 1: Identity Comparison</h3>
+          <div id="identityComparison">
+            <p style="color:white;">Run the pipeline to see identity comparison</p>
+          </div>
         </div>
-        <div class="result-panel" id="agenticResults">
-          <h3 class="agentic-title">Agentic IAM Results</h3>
-          <div id="agenticResultsBody"></div>
+        <div class="result-panel">
+          <h3 style="color:#81d4fa;">Break 2: Model Registry Access</h3>
+          <div id="registryAccess">
+            <p style="color:white;">Run the pipeline to see model registry access test</p>
+          </div>
         </div>
-      </div>
-
-      <!-- Summary -->
-      <div class="summary-box" id="summaryBox" style="display:none;">
-        <h3>Takeaway</h3>
-        <div id="summaryText"></div>
+        <div class="result-panel">
+          <h3 style="color:#81d4fa;">Delegation Chain</h3>
+          <div id="delegationChain">
+            <p style="color:white;">Run the pipeline to see delegation chain</p>
+          </div>
+        </div>
+        <div class="result-panel">
+          <h3 style="color:#81d4fa;">Agent Detail</h3>
+          <div id="agentDetail">
+            <p style="color:white;">Click an agent node above to see details</p>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -605,8 +630,8 @@ const AGENTIC_URL = 'http://localhost:18082';
 
 let aliceToken = null;
 let pipeline = []; // [{type, name, target?}]
-let classicRan = false;
-let agenticRan = false;
+let currentMode = 'classic';
+let agentResults = {};
 
 // ==================== LOGIN ====================
 async function doLogin() {
@@ -646,12 +671,10 @@ async function doLogin() {
 function doLogout() {
   aliceToken = null;
   pipeline = [];
-  classicRan = false;
-  agenticRan = false;
+  agentResults = {};
   document.getElementById('loginScreen').style.display = 'flex';
   document.getElementById('builderScreen').style.display = 'none';
   document.getElementById('resultsGrid').style.display = 'none';
-  document.getElementById('summaryBox').style.display = 'none';
   renderPipeline();
 }
 
@@ -718,10 +741,8 @@ function removeStep(index) {
 
 function clearPipeline() {
   pipeline = [];
-  classicRan = false;
-  agenticRan = false;
+  agentResults = {};
   document.getElementById('resultsGrid').style.display = 'none';
-  document.getElementById('summaryBox').style.display = 'none';
   renderPipeline();
 }
 
@@ -731,8 +752,7 @@ function renderPipeline() {
 
   const hasSteps = pipeline.length > 0;
   el.classList.toggle('empty', !hasSteps);
-  document.getElementById('runClassicBtn').disabled = !hasSteps;
-  document.getElementById('runAgenticBtn').disabled = !hasSteps;
+  document.getElementById('runBtn').disabled = !hasSteps;
 
   pipeline.forEach((step, i) => {
     if (i > 0) {
@@ -779,41 +799,58 @@ function formatName(name) {
   return name.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 }
 
+// ==================== MODE TOGGLE ====================
+function setMode(mode) {
+  currentMode = mode;
+  const runBtn = document.getElementById('runBtn');
+  runBtn.className = `run-btn ${mode}`;
+
+  document.getElementById('modeClassicBtn').style.opacity = mode === 'classic' ? '1' : '0.5';
+  document.getElementById('modeAgenticBtn').style.opacity = mode === 'agentic' ? '1' : '0.5';
+
+  // Reset results
+  document.getElementById('identityComparison').innerHTML = '<p style="color:white;">Run the pipeline to see identity comparison</p>';
+  document.getElementById('registryAccess').innerHTML = '<p style="color:white;">Run the pipeline to see model registry access test</p>';
+  document.getElementById('delegationChain').innerHTML = '<p style="color:white;">Run the pipeline to see delegation chain</p>';
+  document.getElementById('agentDetail').innerHTML = '<p style="color:white;">Click an agent node above to see details</p>';
+  agentResults = {};
+
+  // Reset pipeline step indicators
+  pipeline.forEach((_, i) => {
+    const stepEl = document.getElementById(`status-${i}`)?.closest('.pipeline-step');
+    if (stepEl) stepEl.className = stepEl.className.replace(/ (ok|fail|running)/g, '');
+    const statusEl = document.getElementById(`status-${i}`);
+    if (statusEl) statusEl.textContent = '';
+  });
+}
+
 // ==================== RUN PIPELINE ====================
 async function runPipeline(mode) {
   const baseUrl = mode === 'classic' ? CLASSIC_URL : AGENTIC_URL;
-  const btn = document.getElementById(mode === 'classic' ? 'runClassicBtn' : 'runAgenticBtn');
+  const btn = document.getElementById('runBtn');
   btn.disabled = true;
 
   document.getElementById('resultsGrid').style.display = 'grid';
 
-  const resultsBody = document.getElementById(mode === 'classic' ? 'classicResultsBody' : 'agenticResultsBody');
-  resultsBody.innerHTML = '<div style="color:#aaa;">Running pipeline...</div>';
-
-  // Reset pipeline step indicators
-  pipeline.forEach((_, i) => {
-    const statusEl = document.getElementById(`status-${i}`);
-    if (statusEl) statusEl.textContent = '';
-    const stepEl = statusEl?.closest('.pipeline-step');
-    if (stepEl) stepEl.className = stepEl.className.replace(/ (ok|fail|running)/g, '');
-  });
+  // Reset panels
+  document.getElementById('identityComparison').innerHTML = '<p style="color:#aaa;">Running...</p>';
+  document.getElementById('registryAccess').innerHTML = '<p style="color:#aaa;">Running...</p>';
+  document.getElementById('delegationChain').innerHTML = '<p style="color:#aaa;">Running...</p>';
 
   // Animate steps as running
   pipeline.forEach((_, i) => {
     const stepEl = document.getElementById(`status-${i}`)?.closest('.pipeline-step');
-    if (stepEl) stepEl.classList.add('running');
+    if (stepEl) { stepEl.className = stepEl.className.replace(/ (ok|fail)/g, ''); stepEl.classList.add('running'); }
     const statusEl = document.getElementById(`status-${i}`);
     if (statusEl) statusEl.textContent = '...';
   });
 
   try {
-    // Build auth headers
     let headers = { 'Content-Type': 'application/json' };
     if (mode === 'agentic' && aliceToken) {
       headers['Authorization'] = `Bearer ${aliceToken}`;
     }
 
-    // Send custom pipeline to orchestrator
     const resp = await fetch(`${baseUrl}/api/run-custom-pipeline`, {
       method: 'POST',
       headers: headers,
@@ -821,11 +858,10 @@ async function runPipeline(mode) {
     });
 
     const data = await resp.json();
-    displayResults(mode, data, resultsBody);
+    processResults(mode, data);
 
   } catch (err) {
-    resultsBody.innerHTML = `<div style="color:var(--red);">Error: ${err.message}</div>`;
-    // Clear running state
+    document.getElementById('identityComparison').innerHTML = `<div style="color:var(--red);">Error: ${err.message}</div>`;
     pipeline.forEach((_, i) => {
       const stepEl = document.getElementById(`status-${i}`)?.closest('.pipeline-step');
       if (stepEl) stepEl.className = stepEl.className.replace(/ running/g, '');
@@ -835,270 +871,235 @@ async function runPipeline(mode) {
   }
 
   btn.disabled = false;
-
-  if (mode === 'classic') classicRan = true;
-  else agenticRan = true;
-
-  if (classicRan && agenticRan) showSummary();
 }
 
-function displayResults(mode, data, container) {
-  let html = '';
-  const pipelineResults = data.pipeline_results || [];
+function processResults(mode, data) {
+  const pipelineResultsList = data.pipeline_results || [];
   const orchestratorInfo = data.orchestrator;
 
-  // Show orchestrator info
+  // Collect agent results keyed by name
+  agentResults = {};
   if (orchestratorInfo) {
-    html += `
-      <div class="result-step pass" style="border-left:3px solid var(--purple);">
-        <div class="step-header">
-          <span class="name">Orchestrator</span>
-          <span class="status" style="color:var(--purple);">HUB</span>
-        </div>
-        <div class="step-body">
-          Identity: <strong>${orchestratorInfo.service_account || 'N/A'}</strong>
-        </div>
-      </div>`;
+    agentResults['orchestrator'] = orchestratorInfo;
   }
 
-  // Walk through pipeline results
-  let currentAgentName = null;
+  // Also collect write test results per agent
+  const writeTests = {};
 
-  pipelineResults.forEach((pr, i) => {
+  let currentAgentName = null;
+  pipelineResultsList.forEach((pr, i) => {
     const step = pr.step;
     const stepEl = document.getElementById(`status-${i}`)?.closest('.pipeline-step');
 
     if (step.type === 'agent') {
       currentAgentName = step.name;
-      const agentData = pr.result;
-      const info = agentData?.response?.agent;
-      const status = agentData?.status || 0;
+      const info = pr.result?.response?.agent;
+      const status = pr.result?.status || 0;
 
       if (info && status === 200) {
+        agentResults[step.name] = info;
         if (stepEl) { stepEl.className = stepEl.className.replace(/ running/g, ''); stepEl.classList.add('ok'); }
         const statusEl = document.getElementById(`status-${i}`);
         if (statusEl) statusEl.textContent = 'OK';
-
-        if (mode === 'classic') {
-          html += `
-            <div class="result-step pass">
-              <div class="step-header">
-                <span class="name">${formatName(step.name)}</span>
-                <span class="status">200 OK</span>
-              </div>
-              <div class="step-body">
-                Identity: <strong style="color:var(--red);">${info.service_account || 'shared-sa'}</strong>
-              </div>
-            </div>`;
-        } else {
-          html += `
-            <div class="result-step pass">
-              <div class="step-header">
-                <span class="name">${formatName(step.name)}</span>
-                <span class="status">200 OK</span>
-              </div>
-              <div class="step-body">
-                Identity: <strong style="color:var(--green);">${info.service_account || 'N/A'}</strong><br>
-                Subject: ${info.subject || 'N/A'}<br>
-                Actor: ${info.actor || 'N/A'}<br>
-                Scope: <code>${info.scopes || 'N/A'}</code>
-              </div>
-            </div>`;
-        }
       } else {
         if (stepEl) { stepEl.className = stepEl.className.replace(/ running/g, ''); stepEl.classList.add('fail'); }
         const statusEl = document.getElementById(`status-${i}`);
         if (statusEl) statusEl.textContent = status || 'ERR';
-        html += `
-          <div class="result-step fail">
-            <div class="step-header">
-              <span class="name">${formatName(step.name)}</span>
-              <span class="status">${status || 'ERROR'}</span>
-            </div>
-            <div class="step-body">${agentData?.error || 'Failed to reach agent'}</div>
-          </div>`;
+      }
+    } else if (step.type === 'action' && step.name === 'write-model-registry') {
+      const actingAgent = pr.acting_agent || currentAgentName;
+      const writeResp = pr.result?.response?.model_registry_test;
+      const writeStatus = pr.result?.status || 0;
+
+      if (writeResp) {
+        writeTests[actingAgent] = writeResp;
+      } else {
+        writeTests[actingAgent] = { status: writeStatus, allowed: writeStatus === 200, error: pr.result?.error };
       }
 
-    } else if (step.type === 'action' && step.name === 'write-model-registry') {
-      const writeData = pr.result;
-      const actingAgent = pr.acting_agent || currentAgentName;
-      const writeResp = writeData?.response?.model_registry_test;
-      const writeStatus = writeData?.status || 0;
-
-      if (mode === 'classic') {
-        // Classic: write should succeed (no scope enforcement)
-        const allowed = writeResp ? writeResp.allowed : (writeStatus === 200);
-        const statusCode = writeResp ? writeResp.status : writeStatus;
-
+      if (writeResp && !writeResp.allowed) {
+        if (stepEl) { stepEl.className = stepEl.className.replace(/ running/g, ''); stepEl.classList.add('fail'); }
+        const statusEl = document.getElementById(`status-${i}`);
+        if (statusEl) statusEl.textContent = '403';
+      } else {
         if (stepEl) { stepEl.className = stepEl.className.replace(/ running/g, ''); stepEl.classList.add('ok'); }
         const statusEl = document.getElementById(`status-${i}`);
-        if (statusEl) statusEl.textContent = statusCode || '200';
-
-        html += `
-          <div class="result-step fail">
-            <div class="step-header">
-              <span class="name">${formatName(actingAgent)} &rarr; Write Model Registry</span>
-              <span class="status">${statusCode || 200} OK</span>
-            </div>
-            <div class="step-body" style="color:var(--red);">
-              WRITE SUCCEEDED. ${formatName(actingAgent)} has no business writing here
-              but shared identity grants full access.
-            </div>
-          </div>`;
-
-      } else {
-        // Agentic: check if write was allowed or denied
-        const allowed = writeResp ? writeResp.allowed : (writeStatus === 200);
-        const statusCode = writeResp ? writeResp.status : writeStatus;
-
-        if (allowed) {
-          if (stepEl) { stepEl.className = stepEl.className.replace(/ running/g, ''); stepEl.classList.add('ok'); }
-          const statusEl = document.getElementById(`status-${i}`);
-          if (statusEl) statusEl.textContent = statusCode;
-
-          html += `
-            <div class="result-step pass" style="border-color: var(--green);">
-              <div class="step-header">
-                <span class="name">${formatName(actingAgent)} &rarr; Write Model Registry</span>
-                <span class="status" style="color:var(--green);">${statusCode} OK</span>
-              </div>
-              <div class="step-body" style="color:var(--green);">
-                WRITE ALLOWED. ${formatName(actingAgent)}'s scope includes
-                <code>write:model-registry</code>.
-              </div>
-            </div>`;
-        } else {
-          if (stepEl) { stepEl.className = stepEl.className.replace(/ running/g, ''); stepEl.classList.add('fail'); }
-          const statusEl = document.getElementById(`status-${i}`);
-          if (statusEl) statusEl.textContent = '403';
-
-          // Extract scope from the agent step result if available
-          let agentScopes = 'N/A';
-          for (const prev of pipelineResults) {
-            if (prev.step.type === 'agent' && prev.step.name === actingAgent) {
-              agentScopes = prev.result?.response?.agent?.scopes || 'N/A';
-              break;
-            }
-          }
-
-          html += `
-            <div class="result-step pass">
-              <div class="step-header">
-                <span class="name">${formatName(actingAgent)} &rarr; Write Model Registry</span>
-                <span class="status">403 DENIED</span>
-              </div>
-              <div class="step-body" style="color:var(--green);">
-                BLOCKED. ${formatName(actingAgent)}'s token scope is
-                <code>${agentScopes}</code> &mdash;
-                does not include <code>write:model-registry</code>.
-              </div>
-            </div>`;
-        }
+        if (statusEl) statusEl.textContent = '200';
       }
     }
   });
 
-  // Identity summary for classic mode
-  if (mode === 'classic') {
-    const identities = pipelineResults
-      .filter(pr => pr.step.type === 'agent' && pr.result?.response?.agent)
-      .map(pr => pr.result.response.agent.service_account)
-      .filter(Boolean);
-    const allSame = identities.length > 1 && identities.every(id => id === identities[0]);
-    if (allSame) {
-      html += `
-        <div class="break-indicator violation">
-          <div class="break-label">BREAK 1: Shared Identity</div>
-          All agents use <code>${identities[0]}</code>. Cannot distinguish who did what.
-        </div>`;
+  // Make pipeline steps clickable for detail
+  pipelineResultsList.forEach((pr, i) => {
+    if (pr.step.type === 'agent') {
+      const stepEl = document.getElementById(`status-${i}`)?.closest('.pipeline-step');
+      if (stepEl) {
+        stepEl.style.cursor = 'pointer';
+        stepEl.onclick = () => showAgentDetail(pr.step.name);
+      }
     }
+  });
 
-    const hasWriteAction = pipeline.some(s => s.name === 'write-model-registry');
-    if (hasWriteAction) {
-      html += `
-        <div class="break-indicator violation">
-          <div class="break-label">BREAK 2: No Scope Enforcement</div>
-          Any agent can write to Model Registry. Classic IAM cannot enforce least-privilege.
-        </div>`;
-    }
-  } else {
-    const agentCount = pipelineResults.filter(pr => pr.step.type === 'agent' && pr.result?.status === 200).length;
-    if (agentCount > 1) {
-      html += `
-        <div class="success-indicator">
-          <div class="success-label">Delegation Chain Verified</div>
-          Every hop has unique identity, actor tracking, and scoped permissions.
-        </div>`;
-    }
+  showIdentityComparison(mode);
+  showRegistryAccess(mode, writeTests);
+  showDelegationChain(mode);
+}
 
-    // Check write results for summary
-    const writeSteps = pipelineResults.filter(pr => pr.step.name === 'write-model-registry');
-    const anyDenied = writeSteps.some(pr => {
-      const test = pr.result?.response?.model_registry_test;
-      return test && !test.allowed;
-    });
-    const anyAllowed = writeSteps.some(pr => {
-      const test = pr.result?.response?.model_registry_test;
-      return test && test.allowed;
-    });
+function showIdentityComparison(mode) {
+  const container = document.getElementById('identityComparison');
+  const agents = Object.keys(agentResults);
 
-    if (anyDenied) {
-      html += `
-        <div class="success-indicator">
-          <div class="success-label">Scope Narrowing Enforced</div>
-          Agents can only access resources their scoped token allows.
-          ${anyAllowed ? 'Authorized agents succeeded, unauthorized agents were blocked.' : "Alice's mistake was caught."}
-        </div>`;
-    }
+  if (agents.length === 0) {
+    container.innerHTML = '<p style="color:white;">No results yet</p>';
+    return;
+  }
+
+  const identities = agents.map(a => agentResults[a].service_account || 'unknown');
+  const allSame = identities.every(id => id === identities[0]);
+
+  let html = '<table class="identity-table"><tr><th>Agent</th><th>Identity</th></tr>';
+  agents.forEach(a => {
+    const sa = agentResults[a].service_account || 'unknown';
+    const cssClass = allSame ? 'same' : 'unique';
+    html += `<tr><td>${a}</td><td class="${cssClass}">${sa}</td></tr>`;
+  });
+  html += '</table>';
+
+  if (allSame && mode === 'classic') {
+    html += `
+      <div class="break-indicator violation">
+        <div class="break-label">BREAK 1: All agents share the same identity</div>
+        Every agent is <code>${identities[0]}</code>. You cannot distinguish who did what.
+      </div>`;
+  } else if (!allSame) {
+    html += `
+      <div class="success-indicator">
+        <div class="success-label">PASS: Each agent has a unique identity</div>
+        Every agent is individually identifiable and accountable.
+      </div>`;
   }
 
   container.innerHTML = html;
 }
 
-function showSummary() {
-  const box = document.getElementById('summaryBox');
-  box.style.display = 'block';
+function showRegistryAccess(mode, writeTests) {
+  const container = document.getElementById('registryAccess');
+  const agents = Object.keys(writeTests);
 
-  const hasWriteAction = pipeline.some(s => s.name === 'write-model-registry');
-
-  // Find which agents have write actions
-  const writeAgents = [];
-  let lastAgent = null;
-  pipeline.forEach(step => {
-    if (step.type === 'agent') lastAgent = step.name;
-    if (step.name === 'write-model-registry' && lastAgent) writeAgents.push(lastAgent);
-  });
-
-  let text = '';
-  if (hasWriteAction) {
-    const agentNames = writeAgents.map(formatName).join(', ');
-    text = `
-      <p style="font-size:1.05em;margin-bottom:12px;">
-        Alice configured <strong>${agentNames}</strong> to write to Model Registry.
-      </p>
-      <div style="display:flex;gap:24px;justify-content:center;flex-wrap:wrap;">
-        <div style="text-align:center;">
-          <div style="color:var(--red);font-weight:bold;font-size:1.1em;">Classic IAM</div>
-          <div style="color:#ccc;font-size:0.9em;">All writes succeed silently.<br>Shared identity, no guardrails.</div>
-        </div>
-        <div style="font-size:2em;color:#555;align-self:center;">vs</div>
-        <div style="text-align:center;">
-          <div style="color:var(--green);font-weight:bold;font-size:1.1em;">Agentic IAM</div>
-          <div style="color:#ccc;font-size:0.9em;">Only agents with <code>write:model-registry</code><br>scope can write. Others get 403.</div>
-        </div>
-      </div>
-      <p style="color:var(--purple);font-weight:bold;margin-top:16px;font-size:0.95em;">
-        Agentic IAM enforces least-privilege at every hop &mdash; even when the human makes an error.
-      </p>`;
-  } else {
-    text = `
-      <p style="font-size:0.95em;">
-        Both pipelines completed. Try dragging <strong>"Write Model Registry"</strong>
-        after <strong>Data Agent</strong> to see what happens when Alice makes a mistake.
-      </p>`;
+  if (agents.length === 0) {
+    if (mode === 'classic') {
+      container.innerHTML = '<p style="color:white;">No model registry write test in this pipeline. Drag "Write Model Registry" after an agent.</p>';
+    } else {
+      container.innerHTML = '<p style="color:white;">No model registry write test in this pipeline. Drag "Write Model Registry" after an agent.</p>';
+    }
+    return;
   }
 
-  document.getElementById('summaryText').innerHTML = text;
+  let html = '';
+  agents.forEach(agentName => {
+    const test = writeTests[agentName];
+    if (test.allowed) {
+      html += `
+        <div class="break-indicator violation">
+          <div class="break-label">${mode === 'classic' ? 'BREAK 2: ' : ''}${formatName(agentName)} wrote to Model Registry!</div>
+          ${formatName(agentName)} ${mode === 'classic' ? 'has no scope enforcement — shared identity grants full access.' : 'has write:model-registry scope.'}
+          <br>Status: ${test.status}
+        </div>`;
+    } else {
+      html += `
+        <div class="success-indicator">
+          <div class="success-label">PASS: ${formatName(agentName)} blocked from Model Registry</div>
+          ${formatName(agentName)} tried to write to Model Registry but was denied.
+          <br>Status: ${test.status} - ${test.error || 'Forbidden'}
+        </div>`;
+    }
+  });
+
+  container.innerHTML = html;
+}
+
+function showDelegationChain(mode) {
+  const container = document.getElementById('delegationChain');
+
+  if (mode === 'classic') {
+    container.innerHTML = `
+      <div class="break-indicator">
+        <div class="break-label">No delegation chain exists</div>
+        Classic IAM has no concept of "on behalf of." Every call appears independent.
+        You cannot reconstruct: Alice &rarr; Orchestrator &rarr; Agent
+      </div>
+      <div class="token-display">
+        <div><span class="key">"sub"</span>: <span class="val-red">"${agentResults['orchestrator']?.service_account || 'shared-sa'}"</span></div>
+        <div><span class="key">"act"</span>: <span class="val-red">undefined</span> <span style="color:#666;">// No actor claim</span></div>
+        <div><span class="key">"scope"</span>: <span class="val-red">undefined</span> <span style="color:#666;">// No scope narrowing</span></div>
+      </div>`;
+    return;
+  }
+
+  let html = '<div style="border-left: 3px solid var(--green); padding-left: 12px;">';
+  const agents = Object.keys(agentResults);
+  agents.forEach(name => {
+    const info = agentResults[name];
+    html += `
+      <div style="margin: 8px 0; padding: 8px 12px; background: rgba(46,125,50,0.1); border-radius: 8px; cursor:pointer;" onclick="showAgentDetail('${name}')">
+        <strong style="color: var(--green);">${name}</strong><br>
+        <span style="font-size: 0.85em;">
+          Subject: <span style="color: #81d4fa;">${info.subject || 'N/A'}</span> |
+          Actor: <span style="color: #66bb6a;">${info.actor || 'N/A'}</span><br>
+          Scopes: <code>${info.scopes || 'N/A'}</code>
+        </span>
+      </div>`;
+  });
+  html += '</div>';
+
+  if (agents.length > 1) {
+    html += `
+      <div class="success-indicator" style="margin-top: 12px;">
+        <div class="success-label">Full delegation chain visible</div>
+        Every hop shows WHO (subject), ACTING AS (actor), WITH WHAT SCOPE.
+      </div>`;
+  }
+
+  container.innerHTML = html;
+}
+
+function showAgentDetail(name) {
+  const container = document.getElementById('agentDetail');
+  const info = agentResults[name];
+
+  if (!info) {
+    container.innerHTML = `<p style="color:white;">No data for ${name}. Run the pipeline first.</p>`;
+    return;
+  }
+
+  let html = `<h4 style="color: #81d4fa; margin-bottom: 8px;">${name}</h4>`;
+  html += '<div class="token-display">';
+  html += `<div><span class="key">"agent_name"</span>: <span class="val-green">"${info.agent_name || name}"</span></div>`;
+  html += `<div><span class="key">"namespace"</span>: <span class="val-green">"${info.namespace || 'N/A'}"</span></div>`;
+  html += `<div><span class="key">"service_account"</span>: <span class="val-green">"${info.service_account || 'N/A'}"</span></div>`;
+  html += `<div><span class="key">"subject"</span>: <span class="val-green">"${info.subject || 'N/A'}"</span></div>`;
+  html += `<div><span class="key">"actor"</span>: <span class="val-green">"${info.actor || 'N/A'}"</span></div>`;
+  html += `<div><span class="key">"scopes"</span>: <span class="val-green">"${info.scopes || 'N/A'}"</span></div>`;
+  html += `<div><span class="key">"audience"</span>: <span class="val-green">"${info.audience || 'N/A'}"</span></div>`;
+  html += '</div>';
+
+  if (info.trust_headers) {
+    const th = info.trust_headers;
+    const hasTrust = Object.values(th).some(v => v);
+    if (hasTrust) {
+      html += '<h4 style="color: var(--green); margin: 8px 0 4px;">Trust Headers</h4>';
+      html += '<div class="token-display">';
+      Object.entries(th).forEach(([k, v]) => {
+        html += `<div><span class="key">"${k}"</span>: <span class="val-green">"${v || 'none'}"</span></div>`;
+      });
+      html += '</div>';
+    } else {
+      html += '<h4 style="color: var(--red); margin: 8px 0 4px;">Trust Headers</h4>';
+      html += '<div class="token-display"><span class="val-red">No trust headers present</span></div>';
+    }
+  }
+
+  container.innerHTML = html;
 }
 
 // ==================== INIT ====================
