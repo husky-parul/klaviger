@@ -796,6 +796,68 @@
   <div class="slide-footer">PyTorch Conference Europe 2026</div>
 </section>
 
+<!-- ==================== SLIDE 7: THREE PILLARS OVERVIEW ==================== -->
+<section class="content-slide">
+  <h2>The Three Pillars of Agentic IAM</h2>
+  <p class="subtitle-text">Identity, delegation &amp; observability &mdash; layered on existing infrastructure</p>
+
+  <div style="display: flex; gap: 28px; margin-top: 36px; justify-content: center;">
+
+    <!-- Pillar 1 -->
+    <div style="flex: 1; max-width: 560px; border: 3px solid var(--purple); border-radius: 16px; padding: 24px 20px; background: rgba(141,46,155,0.05);">
+      <div style="text-align: center; margin-bottom: 16px;">
+        <span style="font-size: 2em;">&#x1f512;</span>
+        <h3 style="margin: 8px 0 0; font-size: 1.1em; color: var(--purple);">Pillar 1: Identity &amp; Delegation</h3>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;">
+        <span style="background: var(--purple); color: white; padding: 6px 14px; border-radius: 20px; font-size: 0.5em; font-weight: bold;">Agent Registration</span>
+        <span style="background: var(--purple); color: white; padding: 6px 14px; border-radius: 20px; font-size: 0.5em; font-weight: bold;">Token Exchange (RFC 8693)</span>
+        <span style="background: var(--purple); color: white; padding: 6px 14px; border-radius: 20px; font-size: 0.5em; font-weight: bold;">Scope Narrowing (Custom SPI)</span>
+      </div>
+      <p style="font-size: 0.55em; color: var(--gray); text-align: center; margin-top: 12px; line-height: 1.5;">
+        Every agent gets a unique, cryptographic identity.<br>Scopes narrow at every delegation hop &mdash; never expand.
+      </p>
+    </div>
+
+    <!-- Pillar 2 -->
+    <div style="flex: 1; max-width: 560px; border: 3px solid var(--red); border-radius: 16px; padding: 24px 20px; background: rgba(238,59,36,0.05);">
+      <div style="text-align: center; margin-bottom: 16px;">
+        <span style="font-size: 2em;">&#x1f50d;</span>
+        <h3 style="margin: 8px 0 0; font-size: 1.1em; color: var(--red);">Pillar 2: Discoverability</h3>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;">
+        <span style="background: var(--red); color: white; padding: 6px 14px; border-radius: 20px; font-size: 0.5em; font-weight: bold;">Signed Agent Cards</span>
+        <span style="background: var(--red); color: white; padding: 6px 14px; border-radius: 20px; font-size: 0.5em; font-weight: bold;">Identity Binding</span>
+        <span style="background: var(--red); color: white; padding: 6px 14px; border-radius: 20px; font-size: 0.5em; font-weight: bold;">JWS Signing</span>
+        <span style="background: var(--red); color: white; padding: 6px 14px; border-radius: 20px; font-size: 0.5em; font-weight: bold;">mTLS Enforcement</span>
+      </div>
+      <p style="font-size: 0.55em; color: var(--gray); text-align: center; margin-top: 12px; line-height: 1.5;">
+        Agents discover each other by capability, not DNS.<br>Every discovery is verified &mdash; no impersonation.
+      </p>
+    </div>
+
+    <!-- Pillar 3 -->
+    <div style="flex: 1; max-width: 560px; border: 3px solid var(--blue); border-radius: 16px; padding: 24px 20px; background: rgba(53,50,168,0.05);">
+      <div style="text-align: center; margin-bottom: 16px;">
+        <span style="font-size: 2em;">&#x1f4ca;</span>
+        <h3 style="margin: 8px 0 0; font-size: 1.1em; color: var(--blue);">Pillar 3: Observability</h3>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;">
+        <span style="background: var(--blue); color: white; padding: 6px 14px; border-radius: 20px; font-size: 0.5em; font-weight: bold;">Telemetry</span>
+        <span style="background: var(--blue); color: white; padding: 6px 14px; border-radius: 20px; font-size: 0.5em; font-weight: bold;">Delegation DAG</span>
+        <span style="background: var(--blue); color: white; padding: 6px 14px; border-radius: 20px; font-size: 0.5em; font-weight: bold;">Accountability Chain</span>
+        <span style="background: var(--blue); color: white; padding: 6px 14px; border-radius: 20px; font-size: 0.5em; font-weight: bold;">Prove Control on Demand</span>
+      </div>
+      <p style="font-size: 0.55em; color: var(--gray); text-align: center; margin-top: 12px; line-height: 1.5;">
+        Every decision logged with full context.<br>Immutable, tamper-evident accountability.
+      </p>
+    </div>
+
+  </div>
+
+  <div class="slide-footer">PyTorch Conference Europe 2026</div>
+</section>
+
 <!-- ==================== SLIDE 7a: PILLAR 1 - WHAT IS SPIFFE ==================== -->
 <section class="content-slide">
   <h2>Pillar 1: Agent Identity</h2>
@@ -978,7 +1040,7 @@
       <div class="info-block" style="margin-top: 12px;">
         <div class="info-header">Zero Code Changes to Agents</div>
         <div class="info-body">
-          Agents are <strong>unaware</strong> of the token exchange. Sidecar Proxy runs as a sidecar &mdash; it intercepts HTTP calls, exchanges tokens, and forwards the narrowed token. The agent code is identical in classic and agentic mode.
+          Agents are <strong>unaware</strong> of the token exchange. Sidecar Proxy runs as a sidecar &mdash; it intercepts calls, exchanges tokens, and forwards the narrowed token. The agent code is identical in classic and agentic mode.
         </div>
       </div>
     </div>
@@ -1040,6 +1102,10 @@
     </div>
   </div>
 
+  <p style="font-size: 0.6em; color: var(--dark); margin-top: 20px; text-align: center; font-weight: bold;">
+    You have to prove you are who the Agent Cards says you are.
+  </p>
+
   <div class="slide-footer">PyTorch Conference Europe 2026</div>
 </section>
 
@@ -1051,11 +1117,9 @@
   <div style="display: flex; gap: 24px; margin-top: 16px;">
     <div style="flex: 1;">
       <div class="info-block">
-        <div class="info-header">OTel Spans at Every Hop</div>
+        <div class="info-header">Telemetry Spans at Every Hop</div>
         <div class="info-body">
-          Each Sidecar Proxy emits OpenTelemetry spans tagged with:<br>
-          <code>trust.principal_id</code>, <code>trust.caller_id</code>, <code>trust.hop_kind</code>, <code>trust.scopes</code>
-          <br><br>Full delegation DAG reconstructable from spans.
+          Full delegation Directed Acyclic Graph reconstructable from spans.
         </div>
       </div>
 
