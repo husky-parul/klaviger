@@ -103,6 +103,25 @@
   .collapsible.open .toggle {
     transform: rotate(45deg);
   }
+  .info-block {
+    background: rgba(141, 46, 155, 0.08);
+    border: 2px solid var(--purple);
+    border-radius: 12px;
+    padding: 12px 20px;
+    margin: 8px 0;
+    text-align: left;
+    font-size: 0.65em;
+  }
+  .info-block .info-header {
+    font-weight: bold;
+    color: var(--purple);
+    font-size: 1.1em;
+    margin-bottom: 8px;
+  }
+  .info-block .info-body {
+    color: var(--dark);
+    line-height: 1.6;
+  }
 
   /* Flow diagram */
   .flow {
@@ -531,10 +550,40 @@
     <h1 style="color: white; font-size: 1.8em; line-height: 1.3;">Why Classic IAM Collapses<br>for Agents</h1>
     <h2 style="color: white; font-weight: normal; font-size: 0.9em; margin-top: 20px;">Rethinking IAM for Agentic Systems</h2>
     <p style="color: rgba(255,255,255,0.85); font-size: 0.6em; margin-top: 40px;">
-      <!-- SPEAKER: Add your name and affiliation here -->
       <br>PyTorch Conference Europe 2026
+      <br>Parul Singh | Red Hat
     </p>
   </div>
+</section>
+
+<!-- ==================== SLIDE: HEADLINES ==================== -->
+<section class="content-slide">
+  <h2>The World Has Changed</h2>
+
+  <div style="margin-top: 20px; display: flex; flex-direction: column; gap: 10px; font-size: 0.55em;">
+    <div class="break-card" style="padding: 10px 16px;">
+      <div class="label" style="margin-bottom: 2px;">Claude fakes alignment during evaluation</div>
+      Anthropic/Redwood Research: Claude strategically behaves differently when monitored vs. not. Alignment-faking reasoning hit <strong>78%</strong> under training pressure.
+    </div>
+    <div class="break-card" style="padding: 10px 16px;">
+      <div class="label" style="margin-bottom: 2px;">Alibaba AI agent spontaneously starts crypto-mining</div>
+      Not prompted. Not instructed. An autonomous agent with tool access went off on crypto-mining expeditions as a <strong>side effect of autonomous tool use</strong>.
+    </div>
+    <div class="break-card" style="padding: 10px 16px;">
+      <div class="label" style="margin-bottom: 2px;">700 real-world AI scheming cases</div>
+      UK AI Security Institute: <strong>5x rise in misbehavior</strong> between Oct 2025 and Mar 2026. Agents blackmailing users when facing shutdown.
+    </div>
+    <div class="break-card" style="padding: 10px 16px;">
+      <div class="label" style="margin-bottom: 2px;">One compromised agent poisons 87% of downstream decisions in 4 hours</div>
+      Galileo AI research on cascading multi-agent failures. Classic IAM has <strong>no concept of blast-radius containment</strong> across a delegation chain.
+    </div>
+    <div class="break-card" style="padding: 10px 16px;">
+      <div class="label" style="margin-bottom: 2px;">Mexican government breach via AI agents</div>
+      10 agencies compromised, data on <strong>100M+ people</strong> stolen. Autonomous agents with broad access, no per-task scoping.
+    </div>
+  </div>
+
+  <div class="slide-footer">PyTorch Conference Europe 2026</div>
 </section>
 
 <!-- ==================== SLIDE 2: THE WORLD HAS CHANGED ==================== -->
@@ -747,20 +796,16 @@
   <div class="slide-footer">PyTorch Conference Europe 2026</div>
 </section>
 
-<!-- ==================== SLIDE 7: PILLAR 1 - WHAT IS SPIFFE ==================== -->
+<!-- ==================== SLIDE 7a: PILLAR 1 - WHAT IS SPIFFE ==================== -->
 <section class="content-slide">
   <h2>Pillar 1: Agent Identity</h2>
-  <p class="subtitle-text">Every agent needs a unique, verifiable identity &mdash; not a shared service account</p>
+  <p class="subtitle-text">What is SPIFFE?</p>
 
   <div style="display: flex; gap: 24px; margin-top: 16px;">
     <div style="flex: 1;">
-      <div class="collapsible" onclick="toggleCollapsible(this)">
-        <div class="header">
-          <span>What is SPIFFE?</span>
-          <span class="toggle">+</span>
-        </div>
-        <div class="body">
-          <strong>Secure Production Identity Framework for Everyone</strong><br><br>
+      <div class="info-block">
+        <div class="info-header">Secure Production Identity Framework for Everyone</div>
+        <div class="info-body">
           <ul>
             <li>Defines a standard identity format: <strong>SPIFFE ID</strong> &mdash; a URI like <code>spiffe://trust-domain/workload-path</code></li>
             <li>Issues short-lived <strong>SVIDs</strong> (X.509 certs or JWTs) &mdash; no static secrets to rotate</li>
@@ -769,34 +814,14 @@
         </div>
       </div>
 
-      <div class="collapsible" onclick="toggleCollapsible(this)">
-        <div class="header">
-          <span>How We Use It</span>
-          <span class="toggle">+</span>
-        </div>
-        <div class="body">
-          <strong>SPIRE</strong> (the SPIFFE runtime) runs in our K8s cluster and:<br><br>
+      <div class="info-block">
+        <div class="info-header">How We Use It (SPIRE)</div>
+        <div class="info-body">
           <ul>
             <li><strong>Attests</strong> each agent pod automatically via the K8s workload attestor</li>
             <li><strong>Issues</strong> a unique SVID per agent: <code>spiffe://cluster.local/ns/agentic-ml/sa/data-agent</code></li>
             <li><strong>Rotates</strong> credentials every ~60 minutes &mdash; no manual key management</li>
-            <li><strong>Sidecar Proxy sidecar</strong> uses the SVID for mTLS between agents and to authenticate to Keycloak</li>
-          </ul>
-        </div>
-      </div>
-
-      <div class="collapsible" onclick="toggleCollapsible(this)">
-        <div class="header">
-          <span>Agent Registration & Discovery</span>
-          <span class="toggle">+</span>
-        </div>
-        <div class="body">
-          Every agent must be <strong>registered</strong> before it can participate:<br><br>
-          <ul>
-            <li><strong>SPIRE registration entry</strong> &mdash; maps K8s service account to SPIFFE ID</li>
-            <li><strong>Keycloak client</strong> &mdash; registered with <code>federated-jwt</code> auth, bound to SPIFFE/K8s identity</li>
-            <li><strong>Agent Card</strong> at <code>/.well-known/agent.json</code> &mdash; declares capabilities, signed with SPIRE key</li>
-            <li>Unregistered agents <strong>cannot</strong> obtain tokens or participate in delegation chains</li>
+            <li><strong>Sidecar Proxy</strong> uses the SVID for mTLS between agents and to authenticate to Keycloak</li>
           </ul>
         </div>
       </div>
@@ -850,20 +875,47 @@
   <div class="slide-footer">PyTorch Conference Europe 2026</div>
 </section>
 
-<!-- ==================== SLIDE 7b: PILLAR 1 - DELEGATION ==================== -->
+<!-- ==================== SLIDE 7b: PILLAR 1 - REGISTRATION ==================== -->
+<section class="content-slide">
+  <h2>Pillar 1: Agent Registration</h2>
+  <p class="subtitle-text">Every agent must be registered before it can participate</p>
+
+  <div style="display: flex; gap: 24px; margin-top: 20px;">
+    <div style="flex: 1;">
+      <div class="info-block">
+        <div class="info-header">Three registration requirements</div>
+        <div class="info-body">
+          <ul style="line-height: 2;">
+            <li><strong>SPIRE registration entry</strong> &mdash; maps K8s service account to SPIFFE ID</li>
+            <li><strong>Keycloak client</strong> &mdash; registered with <code>federated-jwt</code> auth, bound to SPIFFE/K8s identity</li>
+            <li><strong>Agent Card</strong> at <code>/.well-known/agent.json</code> &mdash; declares capabilities, signed with SPIRE key</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="info-block" style="margin-top: 16px;">
+        <div class="info-header">What this prevents</div>
+        <div class="info-body">
+          Unregistered agents <strong>cannot</strong> obtain tokens or participate in delegation chains. There is no way to sneak in &mdash; the identity perimeter is closed by default.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="slide-footer">PyTorch Conference Europe 2026</div>
+</section>
+
+<!-- ==================== SLIDE 7c: PILLAR 1 - TOKEN EXCHANGE ==================== -->
 <section class="content-slide">
   <h2>Pillar 1: Delegated Authorization</h2>
-  <p class="subtitle-text">How token exchange and scope narrowing work at each hop</p>
+  <p class="subtitle-text">Token Exchange (RFC 8693)</p>
 
   <div style="display: flex; gap: 20px; margin-top: 16px;">
     <div style="flex: 1;">
-      <div class="collapsible" onclick="toggleCollapsible(this)">
-        <div class="header">
-          <span>Token Exchange (RFC 8693)</span>
-          <span class="toggle">+</span>
-        </div>
-        <div class="body">
-          At each hop, <strong>Sidecar Proxy</strong> (sidecar proxy) transparently exchanges tokens:<br><br>
+      <div class="info-block">
+        <div class="info-header">How it works at each hop</div>
+        <div class="info-body">
+          At each hop, the <strong>Sidecar Proxy</strong> transparently exchanges tokens:
           <ol style="padding-left:16px; line-height:1.8;">
             <li>Orchestrator receives Alice's token (<code>sub: alice</code>, all scopes)</li>
             <li>Sidecar Proxy intercepts the call to data-agent</li>
@@ -871,31 +923,6 @@
             <li>Requests only <code>scope=read:features</code></li>
             <li>Keycloak returns a new token: <code>sub=alice</code>, <code>act.sub=orchestrator</code>, <code>scope=read:features</code></li>
           </ol>
-        </div>
-      </div>
-
-      <div class="collapsible" onclick="toggleCollapsible(this)">
-        <div class="header">
-          <span>Scope Narrowing (Custom Keycloak SPI)</span>
-          <span class="toggle">+</span>
-        </div>
-        <div class="body">
-          Keycloak ignores the <code>scope</code> parameter in token exchange by default (bugs #29614, #30704). We built a <strong>custom SPI</strong> that:<br><br>
-          <ul>
-            <li><strong>Intersects</strong> requested scopes with available scopes &mdash; can only narrow, never expand</li>
-            <li><strong>Injects <code>act</code> claims</strong> (RFC 8693 &sect;4.1) to track who is acting on behalf of whom</li>
-            <li><strong>Chains</strong> delegation &mdash; if agent A delegates to agent B, the act claim nests</li>
-          </ul>
-        </div>
-      </div>
-
-      <div class="collapsible" onclick="toggleCollapsible(this)">
-        <div class="header">
-          <span>Zero Code Changes to Agents</span>
-          <span class="toggle">+</span>
-        </div>
-        <div class="body">
-          Agents are <strong>unaware</strong> of the token exchange. Sidecar Proxy runs as a sidecar proxy &mdash; it intercepts HTTP calls, exchanges tokens, and forwards the narrowed token. The agent code is identical in classic and agentic mode.
         </div>
       </div>
     </div>
@@ -929,6 +956,37 @@
   <div class="slide-footer">PyTorch Conference Europe 2026</div>
 </section>
 
+<!-- ==================== SLIDE 7d: PILLAR 1 - SCOPE NARROWING ==================== -->
+<section class="content-slide">
+  <h2>Pillar 1: Scope Narrowing</h2>
+  <p class="subtitle-text">Custom Keycloak SPI &mdash; zero code changes to agents</p>
+
+  <div style="display: flex; gap: 24px; margin-top: 16px;">
+    <div style="flex: 1;">
+      <div class="info-block">
+        <div class="info-header">Custom Keycloak SPI</div>
+        <div class="info-body">
+          Keycloak ignores the <code>scope</code> parameter in token exchange by default (bugs #29614, #30704). We built a <strong>custom SPI</strong> that:
+          <ul>
+            <li><strong>Intersects</strong> requested scopes with available scopes &mdash; can only narrow, never expand</li>
+            <li><strong>Injects <code>act</code> claims</strong> (RFC 8693 Section 4.1) to track who is acting on behalf of whom</li>
+            <li><strong>Chains</strong> delegation &mdash; if agent A delegates to agent B, the act claim nests</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="info-block" style="margin-top: 12px;">
+        <div class="info-header">Zero Code Changes to Agents</div>
+        <div class="info-body">
+          Agents are <strong>unaware</strong> of the token exchange. Sidecar Proxy runs as a sidecar &mdash; it intercepts HTTP calls, exchanges tokens, and forwards the narrowed token. The agent code is identical in classic and agentic mode.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="slide-footer">PyTorch Conference Europe 2026</div>
+</section>
+
 <!-- ==================== SLIDE 8: PILLAR 2 ==================== -->
 <section class="content-slide">
   <h2>Pillar 2: Discoverability</h2>
@@ -936,34 +994,25 @@
 
   <div style="display: flex; gap: 24px; margin-top: 20px;">
     <div style="flex: 1;">
-      <div class="collapsible" onclick="toggleCollapsible(this)">
-        <div class="header">
-          <span>The Business Card Problem</span>
-          <span class="toggle">+</span>
-        </div>
-        <div class="body">
+      <div class="info-block">
+        <div class="info-header">The Business Card Problem</div>
+        <div class="info-body">
           Anyone can print a business card claiming to be a doctor. Similarly, any workload can publish an Agent Card claiming "I am the Training Agent." Without identity binding, discovery is an attack surface.
         </div>
       </div>
 
-      <div class="collapsible" onclick="toggleCollapsible(this)">
-        <div class="header">
-          <span>Three-Step Defense</span>
-          <span class="toggle">+</span>
-        </div>
-        <div class="body">
+      <div class="info-block">
+        <div class="info-header">Three-Step Defense</div>
+        <div class="info-body">
           <strong>1. Bind</strong> &mdash; Agent Card tied to SPIFFE workload identity<br>
           <strong>2. Sign</strong> &mdash; JWS signature with SPIRE-issued key (tamper-evident)<br>
           <strong>3. Enforce</strong> &mdash; Runtime caller authorization via mTLS
         </div>
       </div>
 
-      <div class="collapsible" onclick="toggleCollapsible(this)">
-        <div class="header">
-          <span>Why It Matters</span>
-          <span class="toggle">+</span>
-        </div>
-        <div class="body">
+      <div class="info-block">
+        <div class="info-header">Why It Matters</div>
+        <div class="info-body">
           Agents discover each other <em>by capability</em>, not by fixed DNS name.<br>
           "Find me an agent that can evaluate model safety" &mdash; and verify it is who it claims to be.
         </div>
@@ -1001,24 +1050,18 @@
 
   <div style="display: flex; gap: 24px; margin-top: 16px;">
     <div style="flex: 1;">
-      <div class="collapsible" onclick="toggleCollapsible(this)">
-        <div class="header">
-          <span>OTel Spans at Every Hop</span>
-          <span class="toggle">+</span>
-        </div>
-        <div class="body">
-          Each Sidecar Proxy sidecar emits OpenTelemetry spans tagged with:<br>
+      <div class="info-block">
+        <div class="info-header">OTel Spans at Every Hop</div>
+        <div class="info-body">
+          Each Sidecar Proxy emits OpenTelemetry spans tagged with:<br>
           <code>trust.principal_id</code>, <code>trust.caller_id</code>, <code>trust.hop_kind</code>, <code>trust.scopes</code>
           <br><br>Full delegation DAG reconstructable from spans.
         </div>
       </div>
 
-      <div class="collapsible" onclick="toggleCollapsible(this)">
-        <div class="header">
-          <span>Prove Control on Demand</span>
-          <span class="toggle">+</span>
-        </div>
-        <div class="body">
+      <div class="info-block">
+        <div class="info-header">Prove Control on Demand</div>
+        <div class="info-body">
           Answer audit questions from logs:<br>
           &bull; Which agents were active in this window?<br>
           &bull; What actions were taken on behalf of this user?<br>
@@ -1026,12 +1069,9 @@
         </div>
       </div>
 
-      <div class="collapsible" onclick="toggleCollapsible(this)">
-        <div class="header">
-          <span>Accountability Chain</span>
-          <span class="toggle">+</span>
-        </div>
-        <div class="body">
+      <div class="info-block">
+        <div class="info-header">Accountability Chain</div>
+        <div class="info-body">
           Immutable, tamper-evident logs capture: agent ID, subject ID, resource, action, decision (allow/deny), scope, policy version, and correlation_id linking the entire workflow.
         </div>
       </div>
@@ -1359,39 +1399,27 @@
   <p class="subtitle-text">What we're still solving</p>
 
   <div style="margin-top: 24px;">
-    <div class="collapsible" onclick="toggleCollapsible(this)" style="font-size: 0.6em;">
-      <div class="header">
-        <span>Cross-domain delegation</span>
-        <span class="toggle">+</span>
-      </div>
-      <div class="body">
+    <div class="info-block" style="font-size: 0.6em;">
+      <div class="info-header">Cross-domain delegation</div>
+      <div class="info-body">
         How do delegation chains work across organizational boundaries? OAuth Federation helps but isn't complete for agents.
       </div>
     </div>
-    <div class="collapsible" onclick="toggleCollapsible(this)" style="font-size: 0.6em;">
-      <div class="header">
-        <span>Dynamic capability discovery</span>
-        <span class="toggle">+</span>
-      </div>
-      <div class="body">
+    <div class="info-block" style="font-size: 0.6em;">
+      <div class="info-header">Dynamic capability discovery</div>
+      <div class="info-body">
         Agents discover each other by skill, not DNS name. How do we make this secure at scale without a central registry bottleneck?
       </div>
     </div>
-    <div class="collapsible" onclick="toggleCollapsible(this)" style="font-size: 0.6em;">
-      <div class="header">
-        <span>Revocation cascades</span>
-        <span class="toggle">+</span>
-      </div>
-      <div class="body">
+    <div class="info-block" style="font-size: 0.6em;">
+      <div class="info-header">Revocation cascades</div>
+      <div class="info-body">
         When a delegation is revoked mid-chain, how do we invalidate all downstream delegations in near-real-time?
       </div>
     </div>
-    <div class="collapsible" onclick="toggleCollapsible(this)" style="font-size: 0.6em;">
-      <div class="header">
-        <span>Behavioral risk scoring</span>
-        <span class="toggle">+</span>
-      </div>
-      <div class="body">
+    <div class="info-block" style="font-size: 0.6em;">
+      <div class="info-header">Behavioral risk scoring</div>
+      <div class="info-body">
         How do we continuously evaluate agent behavior and adjust permissions without creating latency in the request path?
       </div>
     </div>
@@ -1404,17 +1432,47 @@
   <div class="slide-footer">PyTorch Conference Europe 2026</div>
 </section>
 
-<!-- ==================== SLIDE 15: CoSAI CTA ==================== -->
+<!-- ==================== SLIDE 15: RESOURCES & CTA ==================== -->
 <section class="content-slide">
-  <h2>CoSAI</h2>
-  <p class="subtitle-text">Coalition for Secure AI &mdash; Secure Design for Agentic Systems</p>
+  <h2>Get Involved</h2>
+  <p class="subtitle-text">Resources &amp; next steps</p>
 
-  <div style="max-width: 800px; margin: 32px auto 0;">
-    <div class="cta-box">
-      Building shared guidance and emerging standards for agentic identity, delegation, and trust.<br><br>
-      <strong>Get involved:</strong><br>
-      &bull; <a href="https://github.com/cosai-oasis/ws4-secure-design-agentic-systems">github.com/cosai-oasis/ws4-secure-design-agentic-systems</a>
+  <div style="display: flex; gap: 32px; margin-top: 32px; justify-content: center; align-items: stretch;">
+
+    <!-- CoSAI -->
+    <div class="info-block" style="flex: 1; max-width: 540px; font-size: 0.55em; text-align: center;">
+      <div class="info-header" style="display: flex; align-items: center; justify-content: center; gap: 12px;">
+        <img src="https://raw.githubusercontent.com/cosai-oasis/oasis-open-project/main/artwork/cosai-logo.png" alt="CoSAI" style="height: 40px;">
+        Join CoSAI
+      </div>
+      <div class="info-body">
+        Coalition for Secure AI &mdash; Secure Design for Agentic Systems<br><br>
+        <a href="https://github.com/cosai-oasis/ws4-secure-design-agentic-systems" style="color: var(--red); word-break: break-all;">github.com/cosai-oasis/ws4-secure-design-agentic-systems</a>
+      </div>
     </div>
+
+    <!-- Red Hat blog -->
+    <div class="info-block" style="flex: 1; max-width: 540px; font-size: 0.55em; text-align: center;">
+      <div class="info-header" style="display: flex; align-items: center; justify-content: center; gap: 12px;">
+        Zero Trust Secure Foundations for Agentic AI
+      </div>
+      <div class="info-body">
+        Building more secure foundations for autonomous agentic AI systems<br><br>
+        <a href="https://next.redhat.com/2026/02/26/zero-trust-for-autonomous-agentic-ai-systems-building-more-secure-foundations/" style="color: var(--red); word-break: break-all;">next.redhat.com/2026/02/26/zero-trust-for-autonomous-agentic-ai-systems</a>
+      </div>
+    </div>
+
+    <!-- Red Hat ET -->
+    <div class="info-block" style="flex: 1; max-width: 540px; font-size: 0.55em; text-align: center;">
+      <div class="info-header" style="display: flex; align-items: center; justify-content: center; gap: 12px;">
+        Agentic IAM @ Red Hat ET
+      </div>
+      <div class="info-body">
+        Follow the zero-trust agent demo &amp; agentic IAM work<br><br>
+        <a href="https://github.com/redhat-et/zero-trust-agent-demo" style="color: var(--red); word-break: break-all;">github.com/redhat-et/zero-trust-agent-demo</a>
+      </div>
+    </div>
+
   </div>
 
   <div class="slide-footer">PyTorch Conference Europe 2026</div>
