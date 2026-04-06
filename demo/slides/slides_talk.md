@@ -127,6 +127,9 @@ Parul Singh | Red Hat
 **Registration & discovery**:
 "But identity alone isn't enough — agents must be registered before they can participate. That means three things: a SPIRE registration entry mapping the K8s service account to a SPIFFE ID, a Keycloak client bound to that identity, and an Agent Card at `.well-known/agent.json` declaring what the agent can do. If an agent isn't registered in all three places, it cannot obtain tokens and cannot participate in any delegation chain. There's no way to sneak in."
 
+**SPIRE beyond Kubernetes (anticipate the question)**:
+"Someone might ask — does this only work with Kubernetes? No. SPIRE supports multiple attestation methods. It can attest bare metal servers via join tokens or TPM-based attestation. It works with VMs using cloud-specific attestors — AWS, GCP, Azure. It can attest Docker containers and even systemd services. SPIRE can map any workload — bare metal, VM, or container — to a SPIFFE ID."
+
 **Point to the visual**:
 "Look at the comparison on the right. Classic IAM — all five agents show `ml-pipeline-sa`. Agentic IAM — each agent has its own SPIFFE ID. Now when something goes wrong, you know exactly which agent did it."
 
@@ -143,8 +146,8 @@ Parul Singh | Red Hat
 **Token Exchange — RFC 8693**:
 "This is what RFC 8693 — OAuth Token Exchange — was designed for. At each hop, our sidecar proxy intercepts the outbound call and exchanges tokens with Keycloak. It sends Alice's token as the `subject_token` — that's who we're acting for. It sends the agent's own Kubernetes service account JWT as the `client_assertion` — that's who we are. And critically, it requests only the scopes the downstream agent needs. Keycloak returns a brand new token with `sub=alice`, `act.sub=orchestrator`, and `scope=read:features`. Alice's identity is preserved, the actor is recorded, and the scope is narrowed."
 
-**Custom Keycloak SPI**:
-"Now here's where we hit a real-world problem. Keycloak's built-in token exchange ignores the `scope` parameter. There are open bugs for this — #29614 and #30704. So we built a custom SPI that does three things: it intersects the requested scopes with the available scopes — so you can only narrow, never expand. It injects the `act` claim from RFC 8693 section 4.1 to track the delegation chain. And it chains — if agent A delegates to agent B, the act claim nests. You get a full history of who delegated to whom."
+**Custom Keycloak SPI (if asked: SPI = Service Provider Interface — Java's plugin mechanism. In Keycloak, an SPI is a plugin/extension point that lets you override or extend built-in behavior)**:
+"Now here's where we hit a real-world problem. Keycloak's built-in token exchange ignores the `scope` parameter. There are open bugs for this — #29614 and #30704. So we built a custom SPI — essentially a Keycloak plugin — that does three things: it intersects the requested scopes with the available scopes — so you can only narrow, never expand. It injects the `act` claim from RFC 8693 section 4.1 to track the delegation chain. And it chains — if agent A delegates to agent B, the act claim nests. You get a full history of who delegated to whom."
 
 **Zero code changes**:
 "And here's the part I love — the agents don't know any of this is happening. The sidecar proxy handles everything. It intercepts the HTTP call, exchanges the token, and forwards the narrowed token to the downstream agent. The agent code is identical in classic and agentic mode. Zero code changes."

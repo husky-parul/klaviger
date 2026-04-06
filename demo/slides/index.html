@@ -636,6 +636,9 @@
     <div class="number">1</div>
     <div class="text">
       <strong>How should agent identity be defined</strong> when tools, workflows, and execution context are dynamic?
+      <div style="margin-top: 8px; font-size: 0.85em; color: var(--gray);">
+        Who is this agent? SA created once. Shared among workloads.
+      </div>
     </div>
   </div>
 
@@ -643,6 +646,9 @@
     <div class="number">2</div>
     <div class="text">
       <strong>How do we preserve accountability</strong> when agents act on behalf of users or other agents?
+      <div style="margin-top: 8px; font-size: 0.85em; color: var(--gray);">
+        Who triggered this?
+      </div>
     </div>
   </div>
 
@@ -650,6 +656,11 @@
     <div class="number">3</div>
     <div class="text">
       <strong>How should access change</strong> as agent behavior and risk evolve during execution?
+      <div style="margin-top: 8px; font-size: 0.85em; color: var(--gray); line-height: 1.6;">
+        Classic IAM checks permission at the gate and trusts forever.<br>
+        Agent behavior changes mid-execution.<br>
+        Classic IAM doesn't re-evaluate this.
+      </div>
     </div>
   </div>
 
@@ -948,8 +959,8 @@
         <div class="info-header">Three registration requirements</div>
         <div class="info-body">
           <ul style="line-height: 2;">
-            <li><strong>SPIRE registration entry</strong> &mdash; maps K8s service account to SPIFFE ID</li>
-            <li><strong>Keycloak client</strong> &mdash; registered with <code>federated-jwt</code> auth, bound to SPIFFE/K8s identity</li>
+            <li><strong>SPIRE registration entry</strong> &mdash; maps workload to SPIFFE ID</li>
+            <li><strong>Keycloak client</strong> &mdash; registered with <code>federated-jwt</code> auth, bound to SPIFFE identity</li>
             <li><strong>Agent Card</strong> at <code>/.well-known/agent.json</code> &mdash; declares capabilities, signed with SPIRE key</li>
           </ul>
         </div>
@@ -977,11 +988,11 @@
       <div class="info-block">
         <div class="info-header">How it works at each hop</div>
         <div class="info-body">
-          At each hop, the <strong>Sidecar Proxy</strong> transparently exchanges tokens:
+          At each hop, we do transparent token exchange:
           <ol style="padding-left:16px; line-height:1.8;">
             <li>Orchestrator receives Alice's token (<code>sub: alice</code>, all scopes)</li>
             <li>Sidecar Proxy intercepts the call to data-agent</li>
-            <li>Sends token exchange to <strong>Keycloak</strong> with Alice's token as <code>subject_token</code> and its own K8s SA token as <code>actor_token</code></li>
+            <li>Sends token exchange to <strong>Keycloak</strong> with Alice's token as <code>subject_token</code> and its own SA token as <code>actor_token</code></li>
             <li>Requests only <code>scope=read:features</code></li>
             <li>Keycloak returns a new token: <code>sub=alice</code>, <code>act.sub=orchestrator</code>, <code>scope=read:features</code></li>
           </ol>
@@ -1066,7 +1077,7 @@
       <div class="info-block">
         <div class="info-header">Three-Step Defense</div>
         <div class="info-body">
-          <strong>1. Bind</strong> &mdash; Agent Card tied to SPIFFE workload identity<br>
+          <strong>1. Bind</strong> &mdash; Agent Card tied to SPIFFE ID<br>
           <strong>2. Sign</strong> &mdash; JWS signature with SPIRE-issued key (tamper-evident)<br>
           <strong>3. Enforce</strong> &mdash; Runtime caller authorization via mTLS
         </div>
