@@ -1277,96 +1277,6 @@
   <div class="slide-footer">PyTorch Conference Europe 2026</div>
 </section>
 
-<!-- ==================== SLIDE 12: TOKEN EXCHANGE FLOW ==================== -->
-<section class="content-slide">
-  <h2>How the Token Exchange Actually Works</h2>
-  <p class="subtitle-text">End-to-end: Alice triggers the pipeline, tokens exchange at every hop</p>
-
-  <div style="display: flex; gap: 20px; margin-top: 12px;">
-    <!-- Left: Flow diagram -->
-    <div style="flex: 1.2; font-size: 0.42em; font-family: 'Courier New', monospace; line-height: 1.7; color: var(--dark);">
-
-      <!-- Alice -->
-      <div style="background: rgba(53,50,168,0.08); border: 2px solid var(--blue); border-radius: 10px; padding: 10px 14px; margin-bottom: 6px;">
-        <strong style="color: var(--blue); font-size: 1.15em;">Alice (Browser)</strong><br>
-        <span style="color: #888;">POST</span> /api/login &#8594; Orchestrator &#8594; <strong>Keycloak password grant</strong><br>
-        <span style="color: #888;">Returns:</span> <span style="color: var(--blue);">access_token</span> (<code>sub=alice</code>, all scopes)<br>
-        <span style="color: #888;">POST</span> /api/run-pipeline with <span style="color: var(--blue);">Bearer &lt;alice-token&gt;</span>
-      </div>
-
-      <!-- Arrow -->
-      <div style="text-align: center; color: var(--purple); font-size: 1.6em; margin: 2px 0;">&#8595;</div>
-
-      <!-- Orchestrator -->
-      <div style="background: rgba(141,46,155,0.08); border: 2px solid var(--purple); border-radius: 10px; padding: 10px 14px; margin-bottom: 6px;">
-        <strong style="color: var(--purple); font-size: 1.15em;">Orchestrator Pod</strong><br>
-        <span style="color: var(--green);">&#10004;</span> <strong>Reverse proxy</strong>: verifies alice-token against Keycloak JWKS<br>
-        <span style="color: #888;">Calls downstream &#8594;</span> training-agent<br>
-        <div style="background: rgba(0,0,0,0.04); border-radius: 6px; padding: 8px 10px; margin-top: 6px; border-left: 3px solid var(--purple);">
-          <strong style="color: var(--purple);">Forward proxy intercepts:</strong><br>
-          1. <code>subject_token</code> = alice-token <span style="color: #888;">(who we're acting for)</span><br>
-          2. <code>client_assertion</code> = K8s SA JWT <span style="color: #888;">(who we are)</span><br>
-          3. Calls <strong>Keycloak token exchange</strong> (RFC 8693)<br>
-          4. Keycloak returns <strong>NEW</strong> token:
-          <div style="margin-left: 16px; margin-top: 4px;">
-            <span style="color: var(--blue);">sub</span>=alice,
-            <span style="color: var(--green);">act.sub</span>=orchestrator,
-            <span style="color: var(--green);">scope</span>=<em>narrowed</em>
-          </div>
-        </div>
-      </div>
-
-      <!-- Arrow -->
-      <div style="text-align: center; color: var(--purple); font-size: 1.6em; margin: 2px 0;">&#8595;</div>
-
-      <!-- Training Agent -->
-      <div style="background: rgba(46,125,50,0.08); border: 2px solid var(--green); border-radius: 10px; padding: 10px 14px;">
-        <strong style="color: var(--green); font-size: 1.15em;">Training Agent Pod</strong><br>
-        <span style="color: var(--green);">&#10004;</span> <strong>Reverse proxy</strong>: verifies the exchanged token<br>
-        <span style="color: #888;">Knows:</span> <code>sub=alice</code>, <code>act.sub=orchestrator</code> &mdash; <strong>WHO</strong> and <strong>ON WHOSE BEHALF</strong><br>
-        <div style="background: rgba(0,0,0,0.04); border-radius: 6px; padding: 8px 10px; margin-top: 6px; border-left: 3px solid var(--green);">
-          <strong style="color: var(--green);">Another token exchange for data-agent:</strong><br>
-          <code>subject_token</code> = alice-via-orchestrator token<br>
-          <code>client_assertion</code> = training-agent SA JWT<br>
-          &#8594; New token: <span style="color: var(--blue);">sub</span>=alice, <span style="color: var(--green);">act.sub</span>=training-agent, <span style="color: var(--green);">scope</span>=<em>further narrowed</em>
-        </div>
-      </div>
-    </div>
-
-    <!-- Right: Key points -->
-    <div style="flex: 0.8;">
-      <div style="font-size: 0.48em; margin-bottom: 16px;">
-        <div style="font-weight: bold; color: var(--purple); margin-bottom: 10px; font-size: 1.1em;">What happens at each hop</div>
-        <div style="background: rgba(141,46,155,0.06); border-radius: 8px; padding: 12px 14px; margin-bottom: 10px; line-height: 1.7;">
-          <strong style="color: var(--purple);">1. Reverse proxy</strong> (inbound)<br>
-          Verifies incoming token against Keycloak JWKS. Rejects invalid/expired tokens.
-        </div>
-        <div style="background: rgba(141,46,155,0.06); border-radius: 8px; padding: 12px 14px; margin-bottom: 10px; line-height: 1.7;">
-          <strong style="color: var(--purple);">2. Forward proxy</strong> (outbound)<br>
-          Intercepts call to downstream agent. Exchanges token via RFC 8693 with narrowed scopes.
-        </div>
-        <div style="background: rgba(141,46,155,0.06); border-radius: 8px; padding: 12px 14px; margin-bottom: 10px; line-height: 1.7;">
-          <strong style="color: var(--purple);">3. Keycloak SPI</strong><br>
-          Intersects requested scopes with allowed scopes. Injects <code>act</code> claim. Can only narrow, never expand.
-        </div>
-      </div>
-
-      <div class="token-visual" style="font-size: 0.85em;">
-        <div style="color:#888; margin-bottom:4px;">// Token at each hop</div>
-        <div><span class="key">"sub"</span>: <span class="value">"alice"</span> <span style="color:#888;">// always preserved</span></div>
-        <div><span class="key">"act.sub"</span>: <span class="value highlight-green">"current-agent"</span> <span style="color:#888;">// changes per hop</span></div>
-        <div><span class="key">"scope"</span>: <span class="value highlight-green">"narrower..."</span> <span style="color:#888;">// shrinks per hop</span></div>
-      </div>
-
-      <div style="font-size: 0.42em; margin-top: 12px; padding: 10px 14px; background: rgba(46,125,50,0.08); border-radius: 8px; border-left: 3px solid var(--green); line-height: 1.6;">
-        <strong style="color: var(--green);">Key insight:</strong> The agent code doesn't know about any of this. The sidecar proxy handles everything transparently. Same agent binary runs in classic and agentic mode.
-      </div>
-    </div>
-  </div>
-
-  <div class="slide-footer">PyTorch Conference Europe 2026</div>
-</section>
-
 <!-- ==================== SLIDE 13: CAPABILITY-RISK MATRIX ==================== -->
 <section class="content-slide">
   <h2>Capability-Risk Classification</h2>
@@ -1548,6 +1458,96 @@
       </div>
     </div>
 
+  </div>
+
+  <div class="slide-footer">PyTorch Conference Europe 2026</div>
+</section>
+
+<!-- ==================== SLIDE: TOKEN EXCHANGE FLOW (TIME PERMITTING) ==================== -->
+<section class="content-slide">
+  <h2>How the Token Exchange Actually Works</h2>
+  <p class="subtitle-text">End-to-end: Alice triggers the pipeline, tokens exchange at every hop</p>
+
+  <div style="display: flex; gap: 20px; margin-top: 12px;">
+    <!-- Left: Flow diagram -->
+    <div style="flex: 1.2; font-size: 0.42em; font-family: 'Courier New', monospace; line-height: 1.7; color: var(--dark);">
+
+      <!-- Alice -->
+      <div style="background: rgba(53,50,168,0.08); border: 2px solid var(--blue); border-radius: 10px; padding: 10px 14px; margin-bottom: 6px;">
+        <strong style="color: var(--blue); font-size: 1.15em;">Alice (Browser)</strong><br>
+        <span style="color: #888;">POST</span> /api/login &#8594; Orchestrator &#8594; <strong>Keycloak password grant</strong><br>
+        <span style="color: #888;">Returns:</span> <span style="color: var(--blue);">access_token</span> (<code>sub=alice</code>, all scopes)<br>
+        <span style="color: #888;">POST</span> /api/run-pipeline with <span style="color: var(--blue);">Bearer &lt;alice-token&gt;</span>
+      </div>
+
+      <!-- Arrow -->
+      <div style="text-align: center; color: var(--purple); font-size: 1.6em; margin: 2px 0;">&#8595;</div>
+
+      <!-- Orchestrator -->
+      <div style="background: rgba(141,46,155,0.08); border: 2px solid var(--purple); border-radius: 10px; padding: 10px 14px; margin-bottom: 6px;">
+        <strong style="color: var(--purple); font-size: 1.15em;">Orchestrator Pod</strong><br>
+        <span style="color: var(--green);">&#10004;</span> <strong>Reverse proxy</strong>: verifies alice-token against Keycloak JWKS<br>
+        <span style="color: #888;">Calls downstream &#8594;</span> training-agent<br>
+        <div style="background: rgba(0,0,0,0.04); border-radius: 6px; padding: 8px 10px; margin-top: 6px; border-left: 3px solid var(--purple);">
+          <strong style="color: var(--purple);">Forward proxy intercepts:</strong><br>
+          1. <code>subject_token</code> = alice-token <span style="color: #888;">(who we're acting for)</span><br>
+          2. <code>client_assertion</code> = SA JWT <span style="color: #888;">(who we are)</span><br>
+          3. Calls <strong>Keycloak token exchange</strong> (RFC 8693)<br>
+          4. Keycloak returns <strong>NEW</strong> token:
+          <div style="margin-left: 16px; margin-top: 4px;">
+            <span style="color: var(--blue);">sub</span>=alice,
+            <span style="color: var(--green);">act.sub</span>=orchestrator,
+            <span style="color: var(--green);">scope</span>=<em>narrowed</em>
+          </div>
+        </div>
+      </div>
+
+      <!-- Arrow -->
+      <div style="text-align: center; color: var(--purple); font-size: 1.6em; margin: 2px 0;">&#8595;</div>
+
+      <!-- Training Agent -->
+      <div style="background: rgba(46,125,50,0.08); border: 2px solid var(--green); border-radius: 10px; padding: 10px 14px;">
+        <strong style="color: var(--green); font-size: 1.15em;">Training Agent Pod</strong><br>
+        <span style="color: var(--green);">&#10004;</span> <strong>Reverse proxy</strong>: verifies the exchanged token<br>
+        <span style="color: #888;">Knows:</span> <code>sub=alice</code>, <code>act.sub=orchestrator</code> &mdash; <strong>WHO</strong> and <strong>ON WHOSE BEHALF</strong><br>
+        <div style="background: rgba(0,0,0,0.04); border-radius: 6px; padding: 8px 10px; margin-top: 6px; border-left: 3px solid var(--green);">
+          <strong style="color: var(--green);">Another token exchange for data-agent:</strong><br>
+          <code>subject_token</code> = alice-via-orchestrator token<br>
+          <code>client_assertion</code> = training-agent SA JWT<br>
+          &#8594; New token: <span style="color: var(--blue);">sub</span>=alice, <span style="color: var(--green);">act.sub</span>=training-agent, <span style="color: var(--green);">scope</span>=<em>further narrowed</em>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Key points -->
+    <div style="flex: 0.8;">
+      <div style="font-size: 0.48em; margin-bottom: 16px;">
+        <div style="font-weight: bold; color: var(--purple); margin-bottom: 10px; font-size: 1.1em;">What happens at each hop</div>
+        <div style="background: rgba(141,46,155,0.06); border-radius: 8px; padding: 12px 14px; margin-bottom: 10px; line-height: 1.7;">
+          <strong style="color: var(--purple);">1. Reverse proxy</strong> (inbound)<br>
+          Verifies incoming token against Keycloak JWKS. Rejects invalid/expired tokens.
+        </div>
+        <div style="background: rgba(141,46,155,0.06); border-radius: 8px; padding: 12px 14px; margin-bottom: 10px; line-height: 1.7;">
+          <strong style="color: var(--purple);">2. Forward proxy</strong> (outbound)<br>
+          Intercepts call to downstream agent. Exchanges token via RFC 8693 with narrowed scopes.
+        </div>
+        <div style="background: rgba(141,46,155,0.06); border-radius: 8px; padding: 12px 14px; margin-bottom: 10px; line-height: 1.7;">
+          <strong style="color: var(--purple);">3. Keycloak SPI</strong><br>
+          Intersects requested scopes with allowed scopes. Injects <code>act</code> claim. Can only narrow, never expand.
+        </div>
+      </div>
+
+      <div class="token-visual" style="font-size: 0.85em;">
+        <div style="color:#888; margin-bottom:4px;">// Token at each hop</div>
+        <div><span class="key">"sub"</span>: <span class="value">"alice"</span> <span style="color:#888;">// always preserved</span></div>
+        <div><span class="key">"act.sub"</span>: <span class="value highlight-green">"current-agent"</span> <span style="color:#888;">// changes per hop</span></div>
+        <div><span class="key">"scope"</span>: <span class="value highlight-green">"narrower..."</span> <span style="color:#888;">// shrinks per hop</span></div>
+      </div>
+
+      <div style="font-size: 0.42em; margin-top: 12px; padding: 10px 14px; background: rgba(46,125,50,0.08); border-radius: 8px; border-left: 3px solid var(--green); line-height: 1.6;">
+        <strong style="color: var(--green);">Key insight:</strong> The agent code doesn't know about any of this. The sidecar proxy handles everything transparently. Same agent binary runs in classic and agentic mode.
+      </div>
+    </div>
   </div>
 
   <div class="slide-footer">PyTorch Conference Europe 2026</div>
